@@ -1,4 +1,6 @@
-o// A single node in the Go game tree.
+// A single node in the Go game tree.
+
+// TODO: pass never gets set to "true" under the current circumstances
 
 import x10.util.ArrayList
 import x10.util.Random
@@ -7,6 +9,7 @@ import x10.util.Timer;
 public class MCTNode {
 
   static val rand:Random = new Random(System.nanoTime());
+  static val PASSFLOOR:Int = 3; // completely arbitrary at this point.
 
   private val CHILDINITSIZE = 10;
   // fields
@@ -30,7 +33,7 @@ public class MCTNode {
     this.timesVisited = 0; // only gets incremented during backprop.
     this.aggReward = 0; // gets set during backprop.
     this.state = state;
-    this.turn = parent.turn ^ TRUE; // XOR T flips the bit.
+    this.turn = parent == null ? FALSE : parent.turn ^ TRUE; // XOR T flips the bit.  TODO: optimize the inital setting so we don't have to check for null parent on every node generated.
     this.bestChildUcb = -99; // we'll always pick the best one to expand on...presumes we get through all the infinite-valued kids before performing the node expansion.
     this.bestChild = null;
     this.pass = FALSE;
@@ -67,6 +70,13 @@ public class MCTNode {
       var child:MCTNode treePolicy(positionsSeen);
       var outcome:Int = defaultPolicy(child, player); // uses the nodes' best descendant, generates an action.
       // no need to return anythinng, because
+      backProp(child, outcome);
+    }
+    if(this.bestChildUcb < PASSFLOOR) {
+      this.pass = TRUE;
+      return null;
+    } else {
+      return this.bestChild;
     }
   }
 
@@ -111,17 +121,17 @@ public class MCTNode {
   public def leafValue(var currNode:MCTNode, val player:Boolean):Int {
     // 'this' is the root of the current game subtree, so we know whose turn it is.
     if(!player) { // player is white
-      if(currentLeader() == Stone.WHITE) {
+      if(this.state.currentLeader() == Stone.WHITE) {
         return 1;
-      } else if(currentLeader() == Stone.BLACK) {
+      } else if(this.state.currentLeader() == Stone.BLACK) {
         return -1;
       } else {
         return 0;
       }
     } else { // player is black
-      if(currentLeader() == Stone.WHITE) {
+      if(this.state.currentLeader() == Stone.WHITE) {
         return -1;
-      } else if(currentLeader() == Stone.BLACK) {
+      } else if(this.state.currentLeader() == Stone.BLACK) {
         return 1;
       } else {
         return 0;
@@ -138,8 +148,7 @@ public class MCTNode {
     return MCTNode(this, childState);
   }
 
-  public def backProp(val reward:Int):Int {
-    var currNode = this;
+  public def backProp(val currNode:MCTNode, val reward:Int):Int {
     while(currNode != null) {
       currNode.updateBestChild();
       currNode.timesVisited++;
@@ -172,6 +181,14 @@ public class MCTNode {
       stone = Stone.BLACK;
     } else {
       stone = Stone.WHITE;
+    }
+  }
+
+  public def findOpponentMoveInChildren(BoardState b):MCTNode {
+    for(var i:Int = 0; i < children.size(); i++) {
+      if(children(i).state == b){
+        
+      }
     }
   }
 

@@ -45,6 +45,16 @@ public class BoardState {
     this.blackScore = toCopy.blackScore;
   }
 
+  // assumes equal height and width
+  public def equals(toTest:BoardState) {
+    for(var i:Int = 0; i < HEIGHT * WIDTH; i++) {
+      if(toTest.stones(i) != this.stones(i)) {
+        return FALSE;
+      }
+    }
+    return TRUE;
+  }
+
   /**
    * Returns White's score for this board
    *
