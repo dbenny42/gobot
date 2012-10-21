@@ -29,6 +29,7 @@ public class Chain {
     }    
   }
 
+
   /**
    * Adds several indices to this chains liberty set. Called after a chain
    * dies to inform neighbor chains of the new liberties. 

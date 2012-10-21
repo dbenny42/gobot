@@ -49,12 +49,12 @@ public class BoardState {
 
   // assumes equal height and width
   public def equals(toTest:BoardState) {
-    for(var i:Int = 0; i < HEIGHT * WIDTH; i++) {
+    for(var i:Int = 0; i < getSize(); i++) {
       if(toTest.stones(i) != this.stones(i)) {
-        return FALSE;
+        return Boolean.FALSE;
       }
     }
-    return TRUE;
+    return Boolean.TRUE;
   }
 
   /**
@@ -97,15 +97,19 @@ public class BoardState {
    *   Stone.BLACK, Stone.WHITE, or Stone.EMPTY depending on the leader
    */
   public def currentLeader():Stone{
+    Console.OUT.println("inside 'currentLeader()'");
     if (this.blackScore > this.whiteScore) {
+      Console.OUT.println("black is current leader");
       return Stone.BLACK;
     }
     
     else if (this.blackScore < this.whiteScore) {
+      Console.OUT.println("white is current leader");
       return Stone.WHITE;
     }
 
     else {
+      Console.OUT.println("empty is current leader?");
       return Stone.EMPTY;
     }
   }
@@ -260,14 +264,21 @@ public class BoardState {
     newBoard.stones(idx) = stone;
     newBoard.addScore(1, stone);
 
+    // Console.OUT.println("inside doMove, here's the board:");
+    // Console.OUT.println(newBoard.print());
+
     // Update chains
     val newChain = newBoard.makeChain(row, col, stone);
 
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
     for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
+      for(i in oppChain.getLiberties()) {
+        Console.OUT.println("before removing liberties: " + i);
+      }
       oppChain.takeLiberty(idx);
       if (oppChain.isDead()) {
+        Console.OUT.println("killing an opponent chain.");
 	newBoard.killChain(oppChain);
       }
     }
@@ -277,7 +288,22 @@ public class BoardState {
       return null;
     }
 
+    Console.OUT.println("board at the end of doMove:");
+    Console.OUT.println(newBoard.print());
+
     return newBoard;
+  }
+
+
+  // TODO: remove after testing.
+  public def printAllLiberties() {
+    for(var idx:Int = 0; idx < this.getSize(); idx++) {
+      for (chain in getChainsAt(this.getAdjacentIndices(idx))) {
+        for(x in chain.getLiberties()) {
+          Console.OUT.println("LIBERTY: " + x);
+        }
+      }
+    }
   }
 
   /**
