@@ -12,6 +12,8 @@ public class BoardState {
   private var whiteScore:Int;
   private var blackScore:Int;
 
+  private var hash:Int;
+
   /**
    * Constructs a new BoardState for an empty board with the given dimensions.
    *
@@ -205,7 +207,7 @@ public class BoardState {
     return (this.stoneAt(idx) == Stone.EMPTY);
   }
 
-    /**
+  /**
    * Place a stone at the given position, updating the board as necessary.
    *
    * This function returns a new BoardState object, or null if the move was

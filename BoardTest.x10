@@ -14,7 +14,7 @@ public class BoardTest {
     return rowOff + colAdd;
   }
 
-  public static def main(argv:Array[String]{self.rank==1}) {
+  public static def main(oargv:Array[String]{self.rank==1}) {
 
     if (argv.size < 2) {
       Console.OUT.println("Please gimme some args.");
