@@ -275,6 +275,9 @@ public class BoardState {
         Console.OUT.println("before removing liberties: " + i);
       }
       oppChain.takeLiberty(idx);
+      for(i in oppChain.getLiberties()) {
+        Console.OUT.println("after removing liberties: " + i);
+      }
       if (oppChain.isDead()) {
         Console.OUT.println("killing an opponent chain.");
 	newBoard.killChain(oppChain);
