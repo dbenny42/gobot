@@ -14,6 +14,6 @@ public struct Stone {
   public def desc():String=desc;
 
   public static val EMPTY = Stone(0, '+', "empty");
-  public static val BLACK = Stone(1, Char.chr(7), "black");
-  public static val WHITE = Stone(2, Char.chr(9), "white");
+  public static val BLACK = Stone(1, 'O', "black");
+  public static val WHITE = Stone(2, '@', "white");
 }

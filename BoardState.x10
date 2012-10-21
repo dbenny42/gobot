@@ -1,4 +1,6 @@
 import x10.util.StringBuilder;
+import x10.util.HashSet;
+import x10.util.Pair;
 
 public class BoardState {
 
@@ -21,42 +23,45 @@ public class BoardState {
     this.chains = new Array[Chain](to_copy.chains);
   }
 
-  public def stoneAt(row:Int, col:Int):Stone {
-    val idx = getIdx(row, col);
-    if (idx != -1)
-      return this.stones(idx);
-    else
-      return null;
+  public def stoneAt(idx:Int):Stone {
+    return this.stones(idx);
   }
 
   public def hasIdx(idx:Int):Boolean {
     return idx > this.stones.size;
   }
 
-  private def getIdx(row:Int, col:Int):Boolean {
-    if (row < this.height && col < this.width)
+  private def getIdx(row:Int, col:Int):Int {
+    if (row >= this.height || col >= this.width)
+      return -1;
+    else if (row < 0 || col < 0)
       return -1;
     else
-      return row*this.width + col
+      return row*this.width + col;
   }
 
   public def getCoord(idx:Int):Pair[Int, Int] {
     val row = idx / this.width;
     val col = idx - (row * this.width);
-    return new Pair(row, col);
+    return new Pair[Int, Int](row, col);
   }
 
   private def hasCoord(row:Int, col:Int):Boolean {
-    return (this.getCoordIdx(row, col) == -1);
+    return (this.getIdx(row, col) == -1);
   }
 
-  public def isEmptyAt(row:Int, col:Int):Boolean {
-    return (this.stoneAt(row, col) == Stones.EMPTY);
+  public def isEmptyAt(idx:Int):Boolean {
+    return (this.stoneAt(idx) == Stone.EMPTY);
   }
 
-  public def doMove(idx:Int, stone:Stone):Boolean {
+  public def doMove(row:Int, col:Int, stone:Stone):BoardState {
+    val idx = getIdx(row, col);
+    return doMove(idx, stone);
+  }
 
-    val Pair[Int, Int] p = getCoord(idx);
+  public def doMove(idx:Int, stone:Stone):BoardState {
+
+    val p:Pair[Int, Int] = getCoord(idx);
     val row = p.first;
     val col = p.second;
 
@@ -65,45 +70,68 @@ public class BoardState {
       return null;
     
     // Make sure we ARE pushing ONTO an empty stone
-    if (!this.isEmptyAt(row, col))
+    if (this.stoneAt(idx) != Stone.EMPTY)
       return null;
 
-    // Validate suicide prohibition
-    val newChain = makeChain(row, col, stone);
+    // Copy the board so we can start modifying
+    val newBoard:BoardState = new BoardState(this);
+
+    // Push the stone into place
+    newBoard.stones(idx) = stone;
+
+    // Update chains and validate suicide prohibition
+    val newChain = newBoard.makeChain(row, col, stone);
     if (newChain.isDead()) {
       return null;
     }
 
-    // Push the stone into place
-    this.stones(idx) = stone;
-    this.chains(idx) = chain;
+    // Opponent chains adjacent to the new stone will need to
+    // be notified of lost liberties
+    for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
+      oppChain.takeLiberty(idx);
+      if (oppChain.isDead()) {
+	newBoard.killChain(oppChain);
+      }
+    }
+
+    return newBoard;
+  }
+
+  private def getChainsAt(indices:HashSet[Int]) {
+    val chainSet:HashSet[Chain] = new HashSet[Chain]();
+    for (index in indices) {
+      if (this.chains(index) != null) {
+	chainSet.add(this.chains(index));
+      }
+    }
+
+    return chainSet;
+  }
+
+  private def makeChain(row:Int, col:Int, stone:Stone):Chain {
+    // Create new chain
+    val idx = getIdx(row, col);
+    val newChain = new Chain(idx, stone, this);
+   
+    // Merge with matches
+    val adjIndices = getAdjacentIndices(row, col);
+
+    for (adjChain in getChainsAt(adjIndices)) {
+      if (adjChain != null && adjChain.getStone() == stone) {
+	    newChain.merge(idx, adjChain);
+      }
+    }
+
+    this.chains(idx) = newChain;
 
     // Update chain membership
     for (memberIdx in newChain.getMembers()) {
       this.chains(memberIdx) = newChain;
     }
 
-    // Opponent chains adjacent to the new stone will need to
-    // be notified of lost liberties
-    for (oppChain in getChainsAt(getAdjacentIndices(row, col)) {
-      oppChain.takeLiberty(row, col);
-      if oppChain.isDead() {
-	killChain(oppChain);
-      }
-    }
-  }
-
-  // TODO: Implement getChainsAt
-  // TODO: Implement makeChain
-  // TODO: Finish getAdjacentIndices
-
-  private def makeChain(row:Int, col:Int, stone:Stone):Boolean {
-    // Create new chain
-    // Look for matches on all sides
-    // Merge with matches
+    return newChain;
   }
   
-
   private def killChain(toDie:Chain) {
     for (memberIdx in toDie.getMembers()) {
       this.stones(memberIdx) = Stone.EMPTY;
@@ -112,40 +140,40 @@ public class BoardState {
 
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
       adjChain.addLiberties(toDie.getMembers());
-      // addLiberties should know not to add nonadjacent spaces
     }
   }
+
+  public def getAdjacentIndices(idx:Int):HashSet[Int] {
+    val c = getCoord(idx);
+    return getAdjacentIndices(c.first, c.second);
+  }
+
   
-  private def getAdjacentIndices(row:Int, col:Int):Array[Int] {
-    val adjIndices = new Array[Int](4);
-    var numAdjacencies:Int = 0;
+  private def getAdjacentIndices(row:Int, col:Int):HashSet[Int] {
+    val adjIndices = new HashSet[Int](4);
     
-    val cNorth = this.getCoord(row+1, col);
-    val cSouth = this.getCoord(row-1, col);
-    val cEast = this.getCoord(row, col+1);
-    val cWest = this.getCoord(row, col-1);
+    val cNorth = this.getIdx(row+1, col);
+    val cSouth = this.getIdx(row-1, col);
+    val cEast = this.getIdx(row, col+1);
+    val cWest = this.getIdx(row, col-1);
 
     if (cNorth != -1) {
-      adjIndices(numAdjacencies) = cNorth;
-      numAdjacencies++;
+      adjIndices.add(cNorth);
     }
 
     if (cEast != -1) {
-      adjIndices(numAdjacencies) = cEast;
-      numAdjacencies++;
+      adjIndices.add(cEast);
     }
 
     if (cSouth != -1) {
-      adjIndices(numAdjacencies) = cSouth;
-      numAdjacencies++;
+      adjIndices.add(cSouth);
     }
 
     if (cWest != -1) {
-      adjIndices(numAdjacencies) = cWest;
-      numAdjacencies++;
+      adjIndices.add(cWest);
     }
-
-
+    
+    return adjIndices;
   }
 
   public def print():String {
