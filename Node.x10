@@ -4,17 +4,17 @@ import x10.util.ArrayList
 
 public class MCTNode {
 
-  public val MAXINT = 999999; // TODO: find out what this is actually called.
-  public val CHILDINITSIZE = 10;
+  private val MAXINT = 999999; // TODO: find out what this is actually called.
+  private val CHILDINITSIZE = 10;
   // fields
-  public val parent:MCTNode;
-  public val turn:Boolean; // TRUE is black, FALSE is white ("little white lies")
-  public var children:ArrayList[MCTNode];
-  public var timesVisited:Int;
-  public var aggReward:Int;
-  public var state:BoardState;
-  public var bestChildUcb:Double;
-  public var bestChild:MCTNode;
+  private val parent:MCTNode;
+  private val turn:Boolean; // TRUE is black, FALSE is white ("little white lies")
+  private var children:ArrayList[MCTNode];
+  private var timesVisited:Int;
+  private var aggReward:Int;
+  private var state:BoardState;
+  private var bestChildUcb:Double;
+  private var bestChild:MCTNode;
 
   // constructors
 
