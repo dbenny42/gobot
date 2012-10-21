@@ -7,5 +7,4 @@ BoardTest: 	BoardTest.x10 Chain.x10 BoardState.x10 Stone.x10
 .PHONY: clean
 
 clean: 
-	rm -f *.cc *.h *.class *.java *.out *~
-
+	rm -f *.cc *.h *.class *.java *.out *~ Go

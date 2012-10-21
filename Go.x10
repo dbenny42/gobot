@@ -37,6 +37,7 @@ public class Go {
       Console.OUT.println("usage: ./Go <height> <width>");
       return;
     }
+
     val HEIGHT = Int.parseInt(argv(0));
     val WIDTH = Int.parse(argv(1));
 
@@ -59,9 +60,8 @@ public class Go {
       Console.OUT.println(gameTree.getBoardState().print());
       // for now, the computer will play black.
       if(toMove == Stone.BLACK) {
-        Console.OUT.println("start of a gobot turn.");
+        Console.OUT.println("the gobot is thinking....");
         gameTree = gameTree.UCTSearch(positionsSeen, Boolean.TRUE); // guaranteed to return a unique move.
-
 
 
         if(gameTree != null) { // gameTree will be null when the gobot passes.
@@ -70,7 +70,7 @@ public class Go {
         }
 
         Console.OUT.println("finished gobot turn.");
-        gameTree.getBoardState().printAllLiberties();
+        //gameTree.getBoardState().printAllLiberties();
 
       } else {
         Console.OUT.println("beginning a human turn.");
@@ -86,15 +86,15 @@ public class Go {
           continue; // TODO: our current game tree implementation does generate 'pass' children nodes, so there's no reason to try and find this node in our game tree.
         }
 
-        Console.OUT.println("about to try and parse move.");
+        //Console.OUT.println("about to try and parse move.");
         moveIdx = parseMove(move, HEIGHT, WIDTH);
-        Console.OUT.println("board before your move is implemented: ");
-        Console.OUT.println(gameTree.getBoardState().print());
-        Console.OUT.println("about to create a board state from your input.");
+        //Console.OUT.println("board before your move is implemented: ");
+        //Console.OUT.println(gameTree.getBoardState().print());
+        //Console.OUT.println("about to create a board state from your input.");
         tempState = gameTree.getBoardState().doMove(moveIdx, toMove);
 
-        Console.OUT.println("board after your piece gets placed:");
-        Console.OUT.println(tempState.print());
+        //Console.OUT.println("board after your piece gets placed:");
+        //Console.OUT.println(tempState.print());
 
         if(tempState == null) {
           Console.OUT.println("invalid move, you'll get another chance.");
@@ -103,22 +103,23 @@ public class Go {
           Console.OUT.println("about to place your move in the game tree.");
           var existingNode:MCTNode = gameTree.findOpponentMoveInChildren(tempState);
           if(existingNode != null) {
-            Console.OUT.println("found your node in the game tree.");
+            //Console.OUT.println("found your node in the game tree.");
             gameTree = existingNode;
           } else {
-            Console.OUT.println("did not find your node in the game tree.");
+            //Console.OUT.println("did not find your node in the game tree.");
             gameTree = new MCTNode(tempState); // TODO: fix coloring here, when we go to generalized version.
           }
 
         }
-        
+        Console.OUT.println(gameTree.getBoardState().print());
+        Console.OUT.println("there's the result of your move.  Hit enter for the gobot to play.");
+        Console.IN.readLine();
       }
 
-      Console.OUT.println("board after turn swap: ");
-      Console.OUT.println(gameTree.getBoardState().print());
-      Console.IN.readLine();
+      //Console.OUT.println("board after turn swap: ");
+      //Console.OUT.println(gameTree.getBoardState().print());
 
-      Console.OUT.println("about to switch whose turn it is.");
+      //Console.OUT.println("about to switch whose turn it is.");
       toMove = changeToMove(toMove);
 
       if(gameTree.isGameOver()) {
