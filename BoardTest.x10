@@ -5,8 +5,10 @@ public class BoardTest {
     if (move.length() < 2)
       return -1;
     
+    val startChar = 'a';
     val rowChar = move.charAt(0);
-    val rowOff = (rowChar - 'a')*width;
+    val rowNum:Int = (rowChar.ord() - startChar.ord());
+    val rowOff = rowNum*width;
     val colAdd = Int.parseInt(move.substring(1));
     
     return rowOff + colAdd;
@@ -28,6 +30,7 @@ public class BoardTest {
 
     var b:BoardState = new BoardState(HEIGHT, WIDTH);
 
+/* 
     b=b.doMove(3, 3, Stone.WHITE);
     b=b.doMove(3, 4, Stone.WHITE);
     b=b.doMove(2, 5, Stone.WHITE);
@@ -53,9 +56,7 @@ public class BoardTest {
 
     b=b.doMove(5, 4, Stone.BLACK);
     b=b.doMove(5, 6, Stone.BLACK);
-
-
-    
+*/    
 
     while (true) {
       Console.OUT.println(b.print());
