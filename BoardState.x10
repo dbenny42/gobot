@@ -277,7 +277,7 @@ public class BoardState {
       for(i in oppChain.getLiberties()) {
         Console.OUT.println("before removing liberties: " + i);
       }
-      takeLibertyAndUpdate(oppChain, idx);
+      newBoard.takeLibertyAndUpdate(oppChain, idx);
       for(i in oppChain.getLiberties()) {
         Console.OUT.println("after removing liberties: " + i);
       }
