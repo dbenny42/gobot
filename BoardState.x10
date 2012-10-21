@@ -41,6 +41,7 @@ public class BoardState {
     this.height = toCopy.height;
     this.width = toCopy.width;
     this.stones = new Array[Stone](toCopy.stones);
+
     this.chains = new Array[Chain](toCopy.chains);
 
     this.whiteScore = toCopy.whiteScore;
@@ -276,7 +277,7 @@ public class BoardState {
       for(i in oppChain.getLiberties()) {
         Console.OUT.println("before removing liberties: " + i);
       }
-      oppChain.takeLiberty(idx);
+      takeLibertyAndUpdate(oppChain, idx);
       for(i in oppChain.getLiberties()) {
         Console.OUT.println("after removing liberties: " + i);
       }
@@ -351,7 +352,7 @@ public class BoardState {
 
     for (adjChain in getChainsAt(adjIndices)) {
       if (adjChain != null && adjChain.getStone() == stone) {
-	    newChain.merge(idx, adjChain);
+	    mergeAndUpdate(newChain, idx, adjChain);
       }
     }
 
@@ -383,7 +384,7 @@ public class BoardState {
 
     /* Inform this chain's neighbors of its death */
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
-      adjChain.addLiberties(toDie.getMembers());
+      addLibertiesAndUpdate(adjChain, toDie.getMembers());
     }
   }
 
@@ -438,6 +439,31 @@ public class BoardState {
     
     return adjIndices;
   }
+
+
+  public def addLibertiesAndUpdate(toUpdate:Chain, indices:HashSet[Int]) {
+    val newChain = toUpdate.addLiberties(indices);
+    for (member in toUpdate.getMembers()) {
+      this.chains(member) = newChain;
+    }
+  }
+
+  public def takeLibertyAndUpdate(toUpdate:Chain, idx:Int) {
+    val newChain = toUpdate.takeLiberty(idx);
+    for (member in toUpdate.getMembers()) {
+      this.chains(member) = newChain;
+    }
+  }
+
+  public def mergeAndUpdate(toUpdate:Chain, idx:Int, toMerge:Chain) {
+    val newChain = toUpdate.merge(idx, toMerge);
+    for (member in toUpdate.getMembers()) {
+      this.chains(member) = newChain;
+    }    
+  }
+
+
+
 
   /**
    * Returns the board drawn as a string.

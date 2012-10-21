@@ -29,32 +29,14 @@ public class Chain {
     }    
   }
 
-
   /**
-   * Adds several indices to this chains liberty set. Called after a chain
-   * dies to inform neighbor chains of the new liberties. 
-   *
-   * Args:
-   *  indices: Indices to add to the liberty set. May include nonadjacent
-   *  indices which should not be added.
+   * Copy ctor
    */
-  public def addLiberties(indices:HashSet[Int]) {
-    for (idx in indices) {
-      if (adjacencies.contains(idx)) {
-	liberties.add(idx);
-      }
-    }
-  }
-
-  /**
-   * Removes an index from this chain's liberty set. Called after a stone is
-   * placed to inform neighbor chains of the lost liberty.
-   *
-   * Args:
-   *  idx: Index to remove from liberty set
-   */
-  public def takeLiberty(idx:Int) {
-    liberties.remove(idx);
+  public def this(toCopy:Chain) {
+    this.stone = toCopy.getStone();
+    this.members = toCopy.getMembers();
+    this.adjacencies = toCopy.getAdjacencies();
+    this.liberties = toCopy.getLiberties();
   }
 
   /**
@@ -126,11 +108,51 @@ public class Chain {
    *  connPt: index by which the merged chains are connected.
    *  toMerge: Chain to merge this chain with.
    */
-  public def merge(connPt:Int, toMerge:Chain) {
-    this.members.addAll(toMerge.getMembers());
-    this.liberties.addAll(toMerge.getLiberties());
-    this.liberties.remove(connPt);
-    this.adjacencies.addAll(toMerge.getAdjacencies());
-    this.adjacencies.remove(connPt);
+  public def merge(connPt:Int, toMerge:Chain):Chain {
+
+    val newChain = new Chain(this);
+
+    newChain.members.addAll(toMerge.getMembers());
+    newChain.liberties.addAll(toMerge.getLiberties());
+    newChain.liberties.remove(connPt);
+    newChain.adjacencies.addAll(toMerge.getAdjacencies());
+    newChain.adjacencies.remove(connPt);
+
+    return newChain;
   }
+
+  /**
+   * Adds several indices to this chains liberty set. Called after a chain
+   * dies to inform neighbor chains of the new liberties. 
+   *
+   * Args:
+   *  indices: Indices to add to the liberty set. May include nonadjacent
+   *  indices which should not be added.
+   */
+  public def addLiberties(indices:HashSet[Int]):Chain {
+
+    val newChain = new Chain(this);
+
+    for (idx in indices) {
+      if (newChain.adjacencies.contains(idx)) {
+	newChain.liberties.add(idx);
+      }
+    }
+
+    return newChain;
+  }
+
+  /**
+   * Removes an index from this chain's liberty set. Called after a stone is
+   * placed to inform neighbor chains of the lost liberty.
+   *
+   * Args:
+   *  idx: Index to remove from liberty set
+   */
+  public def takeLiberty(idx:Int):Chain {
+    val newChain = new Chain(this);
+    newChain.liberties.remove(idx);
+    return newChain;
+  }
+
 }
