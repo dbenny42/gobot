@@ -53,7 +53,7 @@ public class MCTNode {
    }
 
   public def this(var state:BoardState) {
-    Console.OUT.println("inside the state MCTNode constructor."); 
+    //Console.OUT.println("inside the state MCTNode constructor."); 
     this.parent = null;
     this.timesVisited = 0; // only gets incremented during backprop.
     this.aggReward = 0.0; // gets set during backprop.
@@ -62,7 +62,7 @@ public class MCTNode {
     this.pass = false;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.actionToTry = 0; // refers to the next index to be tried as a child action.
-    Console.OUT.println("exiting the state MCTNode constructor.");
+    //Console.OUT.println("exiting the state MCTNode constructor.");
   }
 
 
@@ -70,14 +70,14 @@ public class MCTNode {
   public def computeUcb(val c:Double):Double{
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
-    Console.OUT.println("inside computeUcb.  this.aggReward: " + this.aggReward + ", this.timesVisited: " + this.timesVisited);
+    //Console.OUT.println("inside computeUcb.  this.aggReward: " + this.aggReward + ", this.timesVisited: " + this.timesVisited);
     return (this.aggReward / this.timesVisited) + (2 * c * Math.sqrt((2 * Math.log((this.parent.timesVisited as Double))) / this.timesVisited));
   }
 
 
   public def getBestChild(val c:Double):MCTNode {
-    Console.OUT.println("inside getBestChild(), the number of children is: " + this.children.size());
-    Console.OUT.println("the constant is: " + c);
+    //Console.OUT.println("inside getBestChild(), the number of children is: " + this.children.size());
+    //Console.OUT.println("the constant is: " + c);
     var bestVal:Double = -99;
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < this.children.size(); i++) {
@@ -98,36 +98,36 @@ public class MCTNode {
 
   public def withinResourceBound(startTime:Long):Boolean{
     val diff:Long = Timer.milliTime() - startTime;
-    Console.OUT.println("The time diff is " + diff);
+    //Console.OUT.println("The time diff is " + diff);
     return TIMEBOUND > diff;
   }
 
   // generate the action to take, a unique MCTNode whose board state has not been seen before.
   public def UCTSearch(var positionsSeen:HashMap[BoardState, Boolean], val player:Boolean):MCTNode{
-    Console.OUT.println("inside UCTSearch");
+    //Console.OUT.println("inside UCTSearch");
     val startTime:Long = Timer.milliTime();
     while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
-      Console.OUT.println("about to do a tree policy.");
+      //Console.OUT.println("about to do a tree policy.");
       var child:MCTNode = treePolicy(positionsSeen);
       if(child == null) {
         return null; // tree policy was dealing with a leaf. 
       }
-      Console.OUT.println("about to do a default policy.");
+      //Console.OUT.println("about to do a default policy.");
       var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
       // no need to return anythinng, because
-      Console.OUT.println("about to do a backprop.");
-      Console.OUT.println("outcome determined: " + outcome);
+      //Console.OUT.println("about to do a backprop.");
+      //Console.OUT.println("outcome determined: " + outcome);
       backProp(child, outcome);
     }
-    Console.OUT.println("about to get a bestChild.");
+    //Console.OUT.println("about to get a bestChild.");
     var bestChild:MCTNode = getBestChild(0);
     if(bestChild.computeUcb(0) < PASSFLOOR) {
-      Console.OUT.println("we're going to pass.");
+      //Console.OUT.println("we're going to pass.");
       this.pass = Boolean.TRUE;
       return null;
     } else {
-      Console.OUT.println("not a passing turn.  HERE ARE THE LIBERTIES");
-      bestChild.state.printAllLiberties();
+      //Console.OUT.println("not a passing turn.  HERE ARE THE LIBERTIES");
+      //bestChild.state.printAllLiberties();
       return bestChild;
     }
   }
@@ -135,32 +135,32 @@ public class MCTNode {
   // TODO: change the name of this function.
   // find the most urgent expandable child, expand its children, pick one to simulate.
   public def treePolicy(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode{
-    Console.OUT.println("about to try and generate a child.");
+    //Console.OUT.println("about to try and generate a child.");
     var child:MCTNode = generateChild(positionsSeen);
     if(child == null) {
-      Console.OUT.println("child generated was null.");
+      //Console.OUT.println("child generated was null.");
       if(this.children.isEmpty()){
         // dealing with a leaf
         return null; // TODO: force-pass, figure out how to code this.
       } else {
-        Console.OUT.println("all kids were already generated.");
+        //Console.OUT.println("all kids were already generated.");
         return getBestChild(TREEPOLICYCONSTANT); // all kids generated; just return best one.
       }
     } else {
-      Console.OUT.println("successfully generated a new kid.");
+      //Console.OUT.println("successfully generated a new kid.");
       this.children.add(child); // add to list.
-      Console.OUT.println("GENERATED A CHILD, HERE ARE ITS LIBERTIES:");
-      child.state.printAllLiberties();
+      //Console.OUT.println("GENERATED A CHILD, HERE ARE ITS LIBERTIES:");
+      //child.state.printAllLiberties();
 
       return child;
     }
   }
 
   public def generateChild(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode {
-    Console.OUT.println("inside generateChild");
+    //Console.OUT.println("inside generateChild");
     var stone:Stone = stoneFromTurn();
     while(this.actionToTry < this.state.getSize()) {
-      Console.OUT.println("ABOUT TO GENERATE AN ACTION.");
+      //Console.OUT.println("ABOUT TO GENERATE AN ACTION.");
       var possibleState:BoardState = this.state.doMove(this.actionToTry, stone);
       // if valid move AND not seen before
       // TODO: generate output based on whether a move has been seen before or not, for our human users.
@@ -171,13 +171,13 @@ public class MCTNode {
       this.actionToTry++;
     }
     
-    Console.OUT.println("unable to generate a valid, unseen action.");
+    //Console.OUT.println("unable to generate a valid, unseen action.");
     // no more actions are possible.
     return null;
   }
 
   public def defaultPolicy(var positionsSeen:HashMap[BoardState, Boolean], var currNode:MCTNode, val player:Boolean):Int {
-    Console.OUT.println("inside the default policy function.");
+    //Console.OUT.println("inside the default policy function.");
     while(!currNode.isLeaf()){
       currNode = currNode.generateRandomChildState(positionsSeen);
     }
@@ -191,24 +191,24 @@ public class MCTNode {
     // 'this' is the root of the current game subtree, so we know whose turn it is.
     if(!player) { // player is white
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        Console.OUT.println("player is white, winner is white.");
+        //Console.OUT.println("player is white, winner is white.");
         return 1;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        Console.OUT.println("player is white, winner is black.");
+        //Console.OUT.println("player is white, winner is black.");
         return -1;
       } else {
-        Console.OUT.println("draw from white perspective, jerkwads.");
+        //Console.OUT.println("draw from white perspective, jerkwads.");
         return 0;
       }
     } else { // player is black
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        Console.OUT.println("player is black, winner is white.");
+        //Console.OUT.println("player is black, winner is white.");
         return -1;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        Console.OUT.println("player is black, winner is black.");
+        //Console.OUT.println("player is black, winner is black.");
         return 1;
       } else {
-        Console.OUT.println("draw from black perspective, jerkwads.");
+        //Console.OUT.println("draw from black perspective, jerkwads.");
         return 0;
       }
     }

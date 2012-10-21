@@ -98,19 +98,19 @@ public class BoardState {
    *   Stone.BLACK, Stone.WHITE, or Stone.EMPTY depending on the leader
    */
   public def currentLeader():Stone{
-    Console.OUT.println("inside 'currentLeader()'");
+    //Console.OUT.println("inside 'currentLeader()'");
     if (this.blackScore > this.whiteScore) {
-      Console.OUT.println("black is current leader");
+      //Console.OUT.println("black is current leader");
       return Stone.BLACK;
     }
     
     else if (this.blackScore < this.whiteScore) {
-      Console.OUT.println("white is current leader");
+      //Console.OUT.println("white is current leader");
       return Stone.WHITE;
     }
 
     else {
-      Console.OUT.println("empty is current leader?");
+      //Console.OUT.println("empty is current leader?");
       return Stone.EMPTY;
     }
   }
@@ -274,15 +274,15 @@ public class BoardState {
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
     for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
-      for(i in oppChain.getLiberties()) {
-        Console.OUT.println("before removing liberties: " + i);
-      }
+    //   for(i in oppChain.getLiberties()) {
+    //     Console.OUT.println("before removing liberties: " + i);
+    //   }
       newBoard.takeLibertyAndUpdate(oppChain, idx);
-      for(i in oppChain.getLiberties()) {
-        Console.OUT.println("after removing liberties: " + i);
-      }
+      // for(i in oppChain.getLiberties()) {
+      //   Console.OUT.println("after removing liberties: " + i);
+      // }
       if (oppChain.isDead()) {
-        Console.OUT.println("killing an opponent chain.");
+        //Console.OUT.println("killing an opponent chain.");
 	newBoard.killChain(oppChain);
       }
     }
@@ -292,8 +292,8 @@ public class BoardState {
       return null;
     }
 
-    Console.OUT.println("board at the end of doMove:");
-    Console.OUT.println(newBoard.print());
+    //Console.OUT.println("board at the end of doMove:");
+    //Console.OUT.println(newBoard.print());
 
     return newBoard;
   }
