@@ -9,6 +9,9 @@ public class BoardState {
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
+  private var whiteScore:Int;
+  private var blackScore:Int;
+
   /**
    * Constructs a new BoardState for an empty board with the given dimensions.
    *
@@ -21,6 +24,9 @@ public class BoardState {
     this.width = width;
     this.stones = new Array[Stone](height*width, Stone.EMPTY);
     this.chains = new Array[Chain](height*width);
+
+    this.whiteScore = 0;
+    this.blackScore = 0;
   }
 
   /**
@@ -34,8 +40,63 @@ public class BoardState {
     this.width = toCopy.width;
     this.stones = new Array[Stone](toCopy.stones);
     this.chains = new Array[Chain](toCopy.chains);
+
+    this.whiteScore = toCopy.whiteScore;
+    this.blackScore = toCopy.blackScore;
   }
 
+  /**
+   * Returns White's score for this board
+   *
+   * Returns:
+   *   White's score
+   */
+  public def getWhiteScore():Int {
+    return this.whiteScore;
+  }
+
+  /**
+   * Returns Black's score for this board
+   *
+   * Returns:
+   *   Black's score
+   */
+  public def getBlackScore():Int {
+    return this.blackScore;
+  }
+
+  /**
+   * Adds a given quantity to the score associated with a stone type.
+   */
+  private def addScore(toAdd:Int, stone:Stone) {
+    if (stone == Stone.WHITE)
+      this.whiteScore += toAdd;
+    else {
+      this.blackScore += toAdd;
+    }
+  }
+
+  /**
+   * Returns which kind of stone is currently leading in points on this board.
+   *
+   * Returns an empty stone in the case of a tie.
+   *
+   * Returns:
+   *   Stone.BLACK, Stone.WHITE, or Stone.EMPTY depending on the leader
+   */
+  public def currentLeader():Stone{
+    if (this.blackScore > this.whiteScore) {
+      return Stone.BLACK;
+    }
+    
+    else if (this.blackScore < this.whiteScore) {
+      return Stone.WHITE;
+    }
+
+    else {
+      return Stone.EMPTY;
+    }
+  }
 
   /**
    * Returns the size of the play board
@@ -185,12 +246,10 @@ public class BoardState {
 
     // Push the stone into place
     newBoard.stones(idx) = stone;
+    newBoard.addScore(1, stone);
 
-    // Update chains and validate suicide prohibition
+    // Update chains
     val newChain = newBoard.makeChain(row, col, stone);
-    if (newChain.isDead()) {
-      return null;
-    }
 
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
@@ -199,6 +258,11 @@ public class BoardState {
       if (oppChain.isDead()) {
 	newBoard.killChain(oppChain);
       }
+    }
+
+    // Validate suicide prevention
+    if (newChain.isDead()) {
+      return null;
     }
 
     return newBoard;
@@ -272,6 +336,9 @@ public class BoardState {
       this.stones(memberIdx) = Stone.EMPTY;
       this.chains(memberIdx) = null;
     }
+
+    /* Subtract this chain's value from the appropriate score */
+    this.addScore(-1*toDie.getSize(), toDie.getStone());
 
     /* Inform this chain's neighbors of its death */
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
@@ -371,20 +438,28 @@ public class BoardState {
 	    sb.add("  ");
 	  }
 	}
-      } else { // Add the column numbers
-	sb.add("\n\t");
-	for (var row:Int = 0; row < this.width; row++) {
-	  sb.add(row);
-
-	  if (row+1 < width) {
-	    sb.add("  ");
-	  }
-	}
-      }
+      } 
 
       sb.add('\n');
       rowChar = rowChar + 1;
     }
+
+    /* Add the column numbers */
+    sb.add("\n\t");
+    for (var row:Int = 0; row < this.width; row++) {
+      sb.add(row);
+      
+      if (row+1 < width) {
+	sb.add("  ");
+      }
+    }
+
+    sb.add("\n");
+    sb.add("Score:\n");
+    sb.add("-----------\n");
+    sb.add("Black: " + this.blackScore + "\n");
+    sb.add("White: " + this.whiteScore + "\n");
+    
     return sb.result();
   }
 }
