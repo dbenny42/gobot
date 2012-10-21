@@ -5,12 +5,12 @@ import x10.util.HashMap;
 
 public class Go {
   
-  public static HashMap positionsSeen;
+  public static positionsSeen:HashMap[BoardState, Boolean] = new HashMap[BoardState, Boolean]();
 
   public static def main():void {
     positionsSeen.clear();
-    
+
+    Console.OUT.println("Welcome to Go!");
+
   }
-
-
 }
