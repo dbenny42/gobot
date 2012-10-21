@@ -58,6 +58,8 @@ public class BoardTest {
     b=b.doMove(5, 6, Stone.BLACK);
 */    
 
+    var newB:BoardState;
+
     while (true) {
       Console.OUT.println(b.print());
       Console.OUT.println("");
@@ -72,9 +74,11 @@ public class BoardTest {
       }
 
       moveIdx = parseMove(move, HEIGHT, WIDTH);
-      b = b.doMove(moveIdx, toMove);
-      if (b == null) {
+      newB = b.doMove(moveIdx, toMove);
+      if (newB == null) {
 	continue;
+      } else {
+	b = newB;
       }
 
       toMove = (toMove == Stone.BLACK)?Stone.WHITE:Stone.BLACK;

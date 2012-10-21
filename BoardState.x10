@@ -9,6 +9,13 @@ public class BoardState {
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
+  /**
+   * Constructs a new BoardState for an empty board with the given dimensions.
+   *
+   * Args:
+   *   height: Height of the new board
+   *   width: Width of the new board
+   */
   public def this(height:Int, width:Int) {
     this.height = height;
     this.width = width;
@@ -16,21 +23,66 @@ public class BoardState {
     this.chains = new Array[Chain](height*width);
   }
 
-  public def this(to_copy:BoardState) {
-    this.height = to_copy.height;
-    this.width = to_copy.width;
-    this.stones = new Array[Stone](to_copy.stones);
-    this.chains = new Array[Chain](to_copy.chains);
+  /**
+   * Constructs a copy of the provided BoardState
+   *
+   * Args:
+   *   toCopy: BoardState to be copied
+   */
+  public def this(toCopy:BoardState) {
+    this.height = toCopy.height;
+    this.width = toCopy.width;
+    this.stones = new Array[Stone](toCopy.stones);
+    this.chains = new Array[Chain](toCopy.chains);
   }
 
+
+  /**
+   * Returns the size of the play board
+   *
+   * Returns:
+   *   The number of spots on the board.
+   */
+  public def getSize():Int {
+    return this.stones.size;
+  }
+
+  /**
+   * Returns the type of stone located at the given board index
+   *
+   * Args:
+   *   idx: Index on board to check
+   *
+   * Returns:
+   *   The type of stone at the given index
+   */
   public def stoneAt(idx:Int):Stone {
     return this.stones(idx);
   }
 
+  /**
+   * Returns true if the board has the given index.
+   *
+   * Args:
+   *   idx: Index on board to check
+   * 
+   * Returns:
+   *   True if the board has the given index.
+   */
   public def hasIdx(idx:Int):Boolean {
-    return idx > this.stones.size;
+    return idx < this.stones.size;
   }
 
+  /**
+   * Converts a row/column position into an index
+   *
+   * Args:
+   *   row: Row of position to convert to an index
+   *   col: Column of position to convert to an index
+   *
+   * Returns:
+   *   The index of the row, col pair
+   */
   private def getIdx(row:Int, col:Int):Int {
     if (row >= this.height || col >= this.width)
       return -1;
@@ -40,25 +92,80 @@ public class BoardState {
       return row*this.width + col;
   }
 
+  /**
+   * Converts an index into a row/column pair
+   *
+   * Args:
+   *   idx: Index to convert to a pair
+   *
+   * Returns:
+   *   A Pair whose first element is the row and second element is the
+   *   column number
+   */
   public def getCoord(idx:Int):Pair[Int, Int] {
     val row = idx / this.width;
     val col = idx - (row * this.width);
     return new Pair[Int, Int](row, col);
   }
 
+  /**
+   * Returns true if the given row/column pair exists on the board
+   *
+   * Args:
+   *   row: Row index of position
+   *   col: Column index of position
+   *
+   * Returns:
+   *   True if the row/col pair is a valid board position.
+   */
   private def hasCoord(row:Int, col:Int):Boolean {
     return (this.getIdx(row, col) == -1);
   }
 
+  /**
+   * Returns true if there is no stone at the given board index
+   *
+   * Args:
+   *   idx: Index to check for emptiness at.
+   * Returns:
+   *   True if there is no stone at the given board index.
+   */
   public def isEmptyAt(idx:Int):Boolean {
     return (this.stoneAt(idx) == Stone.EMPTY);
   }
 
+    /**
+   * Place a stone at the given position, updating the board as necessary.
+   *
+   * This function returns a new BoardState object, or null if the move was
+   * invalid.
+   *
+   * Args:
+   *   row: Row index at which the new stone should be placed
+   *   col: Column index at which the new stone should be placed
+   *   stone: Stone to place
+   *
+   * Returns:
+   *   A new BoardState object, or null if the move was invalid
+   */
   public def doMove(row:Int, col:Int, stone:Stone):BoardState {
     val idx = getIdx(row, col);
     return doMove(idx, stone);
   }
 
+  /**
+   * Place a stone at the given index, updating the board as necessary.
+   *
+   * This function returns a new BoardState object, or null if the move was
+   * invalid.
+   *
+   * Args:
+   *   idx: Index at which the new stone should be placed
+   *   stone: Stone to place
+   *
+   * Returns:
+   *   A new BoardState object, or null if the move was invalid
+   */
   public def doMove(idx:Int, stone:Stone):BoardState {
 
     val p:Pair[Int, Int] = getCoord(idx);
@@ -97,7 +204,16 @@ public class BoardState {
     return newBoard;
   }
 
-  private def getChainsAt(indices:HashSet[Int]) {
+  /**
+   * Returns a HashSet of all the chains that exist in a given set of indices.
+   *
+   * Args:
+   *   indices: Board indices to look for chains on.
+   *
+   * Returns:
+   *   HashSet of unique chains found on all indices.
+   */
+  private def getChainsAt(indices:HashSet[Int]):HashSet[Chain] {
     val chainSet:HashSet[Chain] = new HashSet[Chain]();
     for (index in indices) {
       if (this.chains(index) != null) {
@@ -108,6 +224,18 @@ public class BoardState {
     return chainSet;
   }
 
+  /**
+   * Makes a chain by adding a stone to the given row/col position,
+   * merging and updating other chains as necessary.
+   *
+   * Args:
+   *   row: Row index of the new stone
+   *   col: Column index of the stone
+   *   stone: Type of stone added.
+   *
+   * Return:
+   *   The created chain
+   */
   private def makeChain(row:Int, col:Int, stone:Stone):Chain {
     // Create new chain
     val idx = getIdx(row, col);
@@ -132,23 +260,50 @@ public class BoardState {
     return newChain;
   }
   
+  /**
+   * Removes the stones in a given chain from the board.
+   *
+   * Args:
+   *   toDie: Chain to kill.
+   */
   private def killChain(toDie:Chain) {
+
     for (memberIdx in toDie.getMembers()) {
       this.stones(memberIdx) = Stone.EMPTY;
       this.chains(memberIdx) = null;
     }
 
+    /* Inform this chain's neighbors of its death */
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
       adjChain.addLiberties(toDie.getMembers());
     }
   }
 
+  /**
+   * Returns the indices on the board that are adjacent to the given index.
+   *
+   * Args:
+   *   idx: Index of position to check
+   *
+   * Returns:
+   *   A hash set of indeices that are adjacent to the given index
+   */
   public def getAdjacentIndices(idx:Int):HashSet[Int] {
     val c = getCoord(idx);
     return getAdjacentIndices(c.first, c.second);
   }
 
-  
+  /**
+   * Returns the indices on the board that are adjacent to the given row/col
+   * pair
+   *
+   * Args:
+   *   row: Row index of position
+   *   col: Column index of position
+   *
+   * Returns:
+   *   A hash set of indeices that are adjacent to the position
+   */
   private def getAdjacentIndices(row:Int, col:Int):HashSet[Int] {
     val adjIndices = new HashSet[Int](4);
     
@@ -176,6 +331,12 @@ public class BoardState {
     return adjIndices;
   }
 
+  /**
+   * Returns the board drawn as a string.
+   *
+   * Returns:
+   *   A human-readable string representation of the board.
+   */
   public def print():String {
     val sb = new StringBuilder();
     var idx:Int = 0;
