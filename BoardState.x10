@@ -1,6 +1,7 @@
 import x10.util.StringBuilder;
 import x10.util.HashSet;
 import x10.util.Pair;
+import x10.util.ArrayList;
 
 public class BoardState {
 
@@ -47,6 +48,20 @@ public class BoardState {
     this.whiteScore = toCopy.whiteScore;
     this.blackScore = toCopy.blackScore;
   }
+
+  // TODO: if this works, keep a field-version of this list.
+  public def listOfEmptyIdxs():ArrayList[Int] {
+    // TODO: fix init if this works.
+    var emptyIdxs:ArrayList[Int] = new ArrayList[Int](10);
+    for(var i:Int = 0; i < getSize(); i++) {
+      if(stones(i) == Stone.EMPTY) {
+        emptyIdxs.add(i);
+      }
+    }
+    return emptyIdxs;
+  }
+
+
 
   // assumes equal height and width
   public def equals(toTest:BoardState) {
@@ -278,7 +293,7 @@ public class BoardState {
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
     if (newChain == null || newChain.isDead()) {
-      Console.OUT.println("Bad chain");
+      //Console.OUT.println("Bad chain");
       return null;
     }
 

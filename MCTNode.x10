@@ -114,11 +114,12 @@ public class MCTNode {
       }
       //Console.OUT.println("about to do a default policy.");
       var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
-      // no need to return anythinng, because
+      // no need to return anything, because
       //Console.OUT.println("about to do a backprop.");
       //Console.OUT.println("outcome determined: " + outcome);
       backProp(child, outcome);
     }
+
     //Console.OUT.println("about to get a bestChild.");
     var bestChild:MCTNode = getBestChild(0);
     if(bestChild.computeUcb(0) < PASSFLOOR) {
@@ -177,11 +178,15 @@ public class MCTNode {
   }
 
   public def defaultPolicy(var positionsSeen:HashMap[BoardState, Boolean], var currNode:MCTNode, val player:Boolean):Int {
+    
     //Console.OUT.println("inside the default policy function.");
-    while(!currNode.isLeaf()){
-      currNode = currNode.generateRandomChildState(positionsSeen);
+    var tempNode:MCTNode = currNode;
+    while(tempNode != null && !tempNode.isLeaf()){
+      tempNode = currNode.generateRandomChildState(positionsSeen);
+      if(tempNode != null) {
+        currNode = tempNode;
+      }
     }
-    //Console.OUT.println("here's the board we generated:");
     //Console.OUT.println(currNode.state.print());
     //Console.OUT.println("about to return the leaf value.");
     return leafValue(currNode, player);
@@ -216,11 +221,29 @@ public class MCTNode {
 
   public def generateRandomChildState(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode {
     var stone:Stone = stoneFromTurn();
-    var childState:BoardState = this.state.doMove(rand.nextInt(this.state.getSize()), stone);
-    while(childState == null || positionsSeen.get(childState) != null) {
-      childState = this.state.doMove(rand.nextInt(this.state.getSize()), stone);
+
+    // TODO: HERE'S THE PROBLEM: WE'RE SPINNING AT THIS POINT.
+    // 1: get an arraylist of the empty squares, generate one of THOSE randomly, remove it if it's an invalid move, and 
+    var emptyIdxs:ArrayList[Int] = this.state.listOfEmptyIdxs();
+    var randIdx:Int = rand.nextInt(emptyIdxs.size());
+    var childState:BoardState = this.state.doMove(emptyIdxs.get(randIdx), stone);
+    emptyIdxs.removeAt(randIdx);
+
+    while(!emptyIdxs.isEmpty()) {
+      if((childState != null) && (positionsSeen.get(childState) == null)) {
+        //Console.OUT.println("VALID MOVE ACHIEVED.");
+        return new MCTNode(this, childState);        
+      }
+      else {
+        //Console.OUT.println("size of list: " + emptyIdxs.size());
+        //Console.OUT.println("HERE WE ARE.");
+        randIdx = rand.nextInt(emptyIdxs.size());
+        childState = this.state.doMove(emptyIdxs.get(randIdx), stone);
+        emptyIdxs.removeAt(randIdx);
+      }
     }
-    return new MCTNode(this, childState);
+
+    return null;
   }
 
   public def backProp(var currNode:MCTNode, val reward:Int):void {
@@ -250,7 +273,6 @@ public class MCTNode {
         return Boolean.TRUE;
       }
     }
-    //Console.OUT.println("inside validMoveLeft(): " + Boolean.FALSE);
     return Boolean.FALSE;
   }
 
