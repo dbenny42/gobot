@@ -1,4 +1,4 @@
-import x10.util.StringBuilder;
+Bimport x10.util.StringBuilder;
 import x10.util.HashSet;
 import x10.util.Pair;
 
@@ -58,6 +58,10 @@ public class BoardState {
     return Boolean.TRUE;
   }
 
+  public def hashCode() {
+    return this.stones.toString().hashCode();
+  }
+
   /**
    * Returns White's score for this board
    *
@@ -98,19 +102,15 @@ public class BoardState {
    *   Stone.BLACK, Stone.WHITE, or Stone.EMPTY depending on the leader
    */
   public def currentLeader():Stone{
-    //Console.OUT.println("inside 'currentLeader()'");
     if (this.blackScore > this.whiteScore) {
-      //Console.OUT.println("black is current leader");
       return Stone.BLACK;
     }
     
     else if (this.blackScore < this.whiteScore) {
-      //Console.OUT.println("white is current leader");
       return Stone.WHITE;
     }
 
     else {
-      //Console.OUT.println("empty is current leader?");
       return Stone.EMPTY;
     }
   }
@@ -278,12 +278,8 @@ public class BoardState {
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
     if (newChain == null || newChain.isDead()) {
-      Console.OUT.println("Bad chain");
       return null;
     }
-
-    //Console.OUT.println("board at the end of doMove:");
-    //Console.OUT.println(newBoard.print());
 
     return newBoard;
   }
