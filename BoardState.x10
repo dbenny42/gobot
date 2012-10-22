@@ -265,30 +265,20 @@ public class BoardState {
     newBoard.stones(idx) = stone;
     newBoard.addScore(1, stone);
 
-    // Console.OUT.println("inside doMove, here's the board:");
-    // Console.OUT.println(newBoard.print());
 
     // Update chains
-    val newChain = newBoard.makeChain(row, col, stone);
+    var newChain:Chain = newBoard.makeChain(row, col, stone);
 
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
     for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
-    //   for(i in oppChain.getLiberties()) {
-    //     Console.OUT.println("before removing liberties: " + i);
-    //   }
       newBoard.takeLibertyAndUpdate(oppChain, idx);
-      // for(i in oppChain.getLiberties()) {
-      //   Console.OUT.println("after removing liberties: " + i);
-      // }
-      if (oppChain.isDead()) {
-        //Console.OUT.println("killing an opponent chain.");
-	newBoard.killChain(oppChain);
-      }
     }
 
+    newChain = newBoard.chains(idx);
     // Validate suicide prevention
-    if (newChain.isDead()) {
+    if (newChain == null || newChain.isDead()) {
+      Console.OUT.println("Bad chain");
       return null;
     }
 
@@ -345,18 +335,18 @@ public class BoardState {
   private def makeChain(row:Int, col:Int, stone:Stone):Chain {
     // Create new chain
     val idx = getIdx(row, col);
-    val newChain = new Chain(idx, stone, this);
-   
-    // Merge with matches
-    val adjIndices = getAdjacentIndices(row, col);
+    var newChain:Chain = new Chain(idx, stone, this);
+    this.chains(idx) = newChain;   
 
+    // Merge with adjacent chains
+    val adjIndices = getAdjacentIndices(row, col);
     for (adjChain in getChainsAt(adjIndices)) {
       if (adjChain != null && adjChain.getStone() == stone) {
-	    mergeAndUpdate(newChain, idx, adjChain);
+	    mergeAndUpdate(this.chains(idx), idx, adjChain);
       }
     }
 
-    this.chains(idx) = newChain;
+    newChain = this.chains(idx);
 
     // Update chain membership
     for (memberIdx in newChain.getMembers()) {
@@ -443,21 +433,27 @@ public class BoardState {
 
   public def addLibertiesAndUpdate(toUpdate:Chain, indices:HashSet[Int]) {
     val newChain = toUpdate.addLiberties(indices);
-    for (member in toUpdate.getMembers()) {
+    for (member in newChain.getMembers()) {
       this.chains(member) = newChain;
     }
   }
 
   public def takeLibertyAndUpdate(toUpdate:Chain, idx:Int) {
     val newChain = toUpdate.takeLiberty(idx);
-    for (member in toUpdate.getMembers()) {
-      this.chains(member) = newChain;
+
+    if (newChain.isDead()) {
+      this.killChain(newChain);
+    }
+    else {
+      for (member in newChain.getMembers()) {
+	this.chains(member) = newChain;
+      }
     }
   }
 
   public def mergeAndUpdate(toUpdate:Chain, idx:Int, toMerge:Chain) {
     val newChain = toUpdate.merge(idx, toMerge);
-    for (member in toUpdate.getMembers()) {
+    for (member in newChain.getMembers()) {
       this.chains(member) = newChain;
     }    
   }
