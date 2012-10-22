@@ -6,7 +6,7 @@ import x10.util.ArrayList;
 import x10.util.Random;
 import x10.util.Timer;
 import x10.lang.Boolean;
-import x10.util.HashMap;
+import x10.util.HashSet;
 
 public class MCTNode {
 
@@ -103,7 +103,7 @@ public class MCTNode {
   }
 
   // generate the action to take, a unique MCTNode whose board state has not been seen before.
-  public def UCTSearch(var positionsSeen:HashMap[BoardState, Boolean], val player:Boolean):MCTNode{
+  public def UCTSearch(var positionsSeen:HashSet[BoardState], val player:Boolean):MCTNode{
     //Console.OUT.println("inside UCTSearch");
     val startTime:Long = Timer.milliTime();
     while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
@@ -125,7 +125,7 @@ public class MCTNode {
     if(bestChild.computeUcb(0) < PASSFLOOR) {
       //Console.OUT.println("we're going to pass.");
       this.pass = Boolean.TRUE;
-      return null;
+      return this; // TODO: deal with this.
     } else {
       //Console.OUT.println("not a passing turn.  HERE ARE THE LIBERTIES");
       //bestChild.state.printAllLiberties();
@@ -135,7 +135,7 @@ public class MCTNode {
 
   // TODO: change the name of this function.
   // find the most urgent expandable child, expand its children, pick one to simulate.
-  public def treePolicy(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode{
+  public def treePolicy(var positionsSeen:HashSet[BoardState]):MCTNode{
     //Console.OUT.println("about to try and generate a child.");
     var child:MCTNode = generateChild(positionsSeen);
     if(child == null) {
@@ -157,7 +157,7 @@ public class MCTNode {
     }
   }
 
-  public def generateChild(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode {
+  public def generateChild(var positionsSeen:HashSet[BoardState]):MCTNode {
     //Console.OUT.println("inside generateChild");
     var stone:Stone = stoneFromTurn();
     while(this.actionToTry < this.state.getSize()) {
@@ -165,8 +165,8 @@ public class MCTNode {
       var possibleState:BoardState = this.state.doMove(this.actionToTry, stone);
       // if valid move AND not seen before
       // TODO: generate output based on whether a move has been seen before or not, for our human users.
-      if(possibleState != null && positionsSeen.get(possibleState) == null) {
-        this.actionToTry++;
+      if(possibleState != null && !positionsSeen.contains(possibleState)) {
+        this.actionToTry++; // TODO: this is bad.
         return new MCTNode(this, possibleState);
       }
       this.actionToTry++;
@@ -177,14 +177,17 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashMap[BoardState, Boolean], var currNode:MCTNode, val player:Boolean):Int {
+  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode, val player:Boolean):Int {
     
+    var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
+
     //Console.OUT.println("inside the default policy function.");
     var tempNode:MCTNode = currNode;
     while(tempNode != null && !tempNode.isLeaf()){
-      tempNode = currNode.generateRandomChildState(positionsSeen);
+      tempNode = currNode.generateRandomChildState(randomGameMoves);
       if(tempNode != null) {
         currNode = tempNode;
+        randomGameMoves.add(currNode.state);
       }
     }
     //Console.OUT.println(currNode.state.print());
@@ -219,7 +222,8 @@ public class MCTNode {
     }
   }
 
-  public def generateRandomChildState(var positionsSeen:HashMap[BoardState, Boolean]):MCTNode {
+  public def generateRandomChildState(var randomGameMoves:HashSet[BoardState]):MCTNode {
+
     var stone:Stone = stoneFromTurn();
 
     // TODO: HERE'S THE PROBLEM: WE'RE SPINNING AT THIS POINT.
@@ -230,7 +234,7 @@ public class MCTNode {
     emptyIdxs.removeAt(randIdx);
 
     while(!emptyIdxs.isEmpty()) {
-      if((childState != null) && (positionsSeen.get(childState) == null)) {
+      if((childState != null) && !randomGameMoves.contains(childState)) {
         //Console.OUT.println("VALID MOVE ACHIEVED.");
         return new MCTNode(this, childState);        
       }
@@ -243,6 +247,7 @@ public class MCTNode {
       }
     }
 
+    //Console.OUT.println("RETURNING NULL ***************************************************************");
     return null;
   }
 
@@ -256,6 +261,8 @@ public class MCTNode {
 
   public def isLeaf():Boolean {
     // something is a leaf when it either has no valid moves, or both the preceding boards were 'passes'.
+    //Console.OUT.println("we're here in isLeaf()");
+    
     return isLeafOnPasses() || !validMoveLeft();
   }
 

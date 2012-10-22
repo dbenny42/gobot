@@ -1,7 +1,7 @@
 // code for gameplay
 
 import x10.io.Console;
-import x10.util.HashMap;
+import x10.util.HashSet;
 import x10.lang.Boolean;
 
 public class Go {
@@ -28,47 +28,91 @@ public class Go {
     return (toMove == Stone.BLACK) ? Stone.WHITE : Stone.BLACK;
   }
 
+  public static def gobotTurn(toMove:Stone) {
+
+  }
+
+  public static def humanTurn(toMove:Stone) {
+    
+  }
+
+  public static def singlePlayerGame(humanStone:Stone) {
+    var positionsSeen:HashSet[BoardState] = new HashSet[BoardState]();
+    positionsSeen.clear();
+    var tempState:BoardState = new BoardState(HEIGHT, WIDTH);
+    var toMove:Stone = Stone.BLACK;
+    var moveIdx:Int = 0;
+
+    var gameTree:MCTNode = new MCTNode(tempState); // FALSE gets flipped to TRUE so that black goes first.
+
+    positionsSeen.add(gameTree.getBoardState());
+
+    if(humanStone == Stone.BLACK) {
+      humanTurn(Stone.BLACK);
+      toMove = Stone.WHITE;
+    }
+
+    while(!positionsSeen.gameisOver()) {
+      computerTurn();
+    }
+
+  }
+
+  public static def twoPlayerGame() {
+    
+  }
+
   // currently configured to play human against gobot.
   public static def main(var argv:Array[String]):void {
 
     Console.OUT.println("Welcome to Go!");
 
-    if(argv.size != 2) {
-      Console.OUT.println("usage: ./Go <height> <width>");
+    if(argv.size != 4) {
+      Console.OUT.println("usage: ./Go <height> <width> <1 or 2 humans>");
       return;
     }
 
     val HEIGHT = Int.parseInt(argv(0));
     val WIDTH = Int.parse(argv(1));
+    val NUMHUMANS = Int.parse(argv(2));
 
-    Console.OUT.println("parsed height / width.");
-    var positionsSeen:HashMap[BoardState, Boolean] = new HashMap[BoardState, Boolean]();
+    //Console.OUT.println("parsed height / width.");
+    var positionsSeen:HashSet[BoardState] = new HashSet[BoardState]();
     positionsSeen.clear();
-    Console.OUT.println("created positions hashmap.");
+    //Console.OUT.println("created positions hashmap.");
     var tempState:BoardState = new BoardState(HEIGHT, WIDTH);
     var move:String = "";
     var toMove:Stone = Stone.BLACK;
     var moveIdx:Int = 0;
 
-    Console.OUT.println("about to generate game tree root.");
+    //Console.OUT.println("about to generate game tree root.");
     var gameTree:MCTNode = new MCTNode(tempState); // FALSE gets flipped to TRUE so that black goes first.
-    Console.OUT.println("generated game tree root.");
+    //Console.OUT.println("generated game tree root.");
 
-    positionsSeen.put(gameTree.getBoardState(), Boolean.TRUE);
-    Console.OUT.println("added gameTree root to the positions map.");
+    positionsSeen.add(gameTree.getBoardState());
+    //Console.OUT.println("added gameTree root to the positions map.");
+
+    if(NUMHUMANS == 1) {
+      Console.OUT.println("It looks like you're about to start a single-player game.  Enter 1 to play as black, 0 to play as white."); 
+      move = Console.IN.readLine();
+      var humanStone:Stone = (Int.parse(move) == 1 ? Stone.BLACK : Stone.WHITE);
+      singlePlayerGame(humanStone);
+    }
+    else if(NUMHUMANS == 2) {
+      twoPlayerGame();
+    } else {
+      Console.OUT.println("invalid argument for number of humans.");
+    }
+
+
+
     while(Boolean.TRUE) { // will break when game ends.
       Console.OUT.println(gameTree.getBoardState().print());
+
       // for now, the computer will play black.
       if(toMove == Stone.BLACK) {
         Console.OUT.println("the gobot is thinking....");
         gameTree = gameTree.UCTSearch(positionsSeen, Boolean.TRUE); // guaranteed to return a unique move.
-
-
-        if(gameTree != null) { // gameTree will be null when the gobot passes.
-          Console.OUT.println("gameTree non-null, adding to positions seen");
-          positionsSeen.put(gameTree.getBoardState(), Boolean.TRUE);
-        }
-
         Console.OUT.println("finished gobot turn.");
         //gameTree.getBoardState().printAllLiberties();
 
@@ -121,6 +165,7 @@ public class Go {
 
       //Console.OUT.println("about to switch whose turn it is.");
       toMove = changeToMove(toMove);
+      positionsSeen.add(gameTree.getBoardState());
 
       if(gameTree.isGameOver()) {
         Console.OUT.println("the game appears to be over.");
