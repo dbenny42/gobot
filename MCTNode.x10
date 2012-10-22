@@ -14,7 +14,7 @@ public class MCTNode {
   static public val PASSFLOOR:Int = -1; // completely arbitrary at this point.
   static public val TREEPOLICYCONSTANT:Double = .5; // used to compute UCB during tree policy.  Half goes to exploration; half to exploitation.
   static public val CHILDINITSIZE:Int = 10;
-  static public val TIMEBOUND:Long = 10000; // 10s (10000ms)
+  static public val TIMEBOUND:Long = 10000; // 10s (10000ms)\
 
   // fields
   private val parent:MCTNode;
