@@ -1,4 +1,4 @@
-Bimport x10.util.StringBuilder;
+import x10.util.StringBuilder;
 import x10.util.HashSet;
 import x10.util.Pair;
 import x10.util.ArrayList;
@@ -74,7 +74,12 @@ public class BoardState {
   }
 
   public def hashCode() {
-    return this.stones.toString().hashCode();
+    var str:String = "";
+    for(s in this.stones.region) {
+      str = str + stones(s).repr();
+    }
+
+    return str.hashCode();
   }
 
   /**
