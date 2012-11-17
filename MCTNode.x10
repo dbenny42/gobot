@@ -24,6 +24,9 @@ public class MCTNode {
   private var pass:Boolean;
   private var actionToTry:Int;
 
+  private var numAsyncsSpawned:Int = 0;
+  private val MAXASYNCS:Int = 24;
+
   // constructors
 
   // the parent is in charge of generating board state, to make sure we
@@ -98,37 +101,84 @@ public class MCTNode {
   }
 
   public def withinResourceBound(startTime:Long):Boolean{
+    //Console.OUT.println("[withinResourceBound] startTime: " + startTime);
     val diff:Long = Timer.milliTime() - startTime;
-
+    //Console.OUT.println("[withinResourceBound] currTime: " + Timer.milliTime());
+    //Console.OUT.println("[withinResourceBound] diff: " + diff);
+    val result:Boolean = TIMEBOUND > diff;
+    if(result) {
+      Console.OUT.println("[withinResourceBound] returning TRUE.");
+    } else {
+      Console.OUT.println("[withinResourceBound] returning FALSE.");
+    }
     return TIMEBOUND > diff;
   }
 
   public def UCTSearch(var positionsSeen:HashSet[Int], val player:Boolean):MCTNode{
     val startTime:Long = Timer.milliTime();
-    while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
-      var child:MCTNode = treePolicy(positionsSeen);
-      if(child.pass) {
-        return child; // return the passing node.
-      }
-      var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
-      backProp(child, outcome);
+    var passChild:MCTNode = null;
+
+    finish {
+      while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
+        if(numAsyncsSpawned < MAXASYNCS) {
+          Console.OUT.println("spawning an async");
+          atomic numAsyncsSpawned++;
+          async {
+            Console.OUT.println("async about to start tree policy");
+            var child:MCTNode = treePolicy(positionsSeen);
+            if(child.pass) {
+              passChild = child;
+              //return child;
+            } else {
+              var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
+              backProp(child, outcome);
+              Console.OUT.println("async finishing while loop computation.");
+            }
+          } // end async
+        } else {
+          Console.OUT.println("NOT spawning an async");
+          var child:MCTNode = treePolicy(positionsSeen);
+          if(child.pass) {
+            passChild = child;
+          } else {
+            var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
+            backProp(child, outcome);
+            Console.OUT.println("non-async finishing while loop computation.");
+          }
+        }
+        //Console.OUT.println("ending an iteration of the while loop.");
+      } // end while.
+      Console.OUT.println("an async has broken out of the while loop.");
+      atomic numAsyncsSpawned--;
     }
+    Console.OUT.println("Still waiting on " + numAsyncsSpawned);
+    when(numAsyncsSpawned == 0) {
 
-    // done computing within the resource bound.
+      Console.OUT.println("all asyncs have finished, apparently.");
+      //Console.OUT.println("broken out of finish.");
 
-    var bestChild:MCTNode = getBestChild(0);
-    if(bestChild.computeUcb(0) < PASSFLOOR) {
-      return new MCTNode(this.state, Boolean.TRUE);
-    } else {
-      if((this.parent != null) && this.parent.pass && (leafValue(this, player) > 0)) {
+      // done computing within the resource bound.
+
+      if(passChild != null) {
+        return passChild;
+      }
+
+      var bestChild:MCTNode = getBestChild(0);
+      if(bestChild.computeUcb(0) < PASSFLOOR) {
         return new MCTNode(this.state, Boolean.TRUE);
       } else {
-        return bestChild;
+        if((this.parent != null) && this.parent.pass && (leafValue(this, player) > 0)) {
+          return new MCTNode(this.state, Boolean.TRUE);
+        } else {
+          return bestChild;
+        }
       }
+
     }
   }
 
   public def treePolicy(var positionsSeen:HashSet[Int]):MCTNode{
+    Console.OUT.println("looping in tree policy.");
     var child:MCTNode = generateChild(positionsSeen);
 
     if(child == null) { // indicates a leaf OR all kids generated; couldn't generate a child.
@@ -152,11 +202,11 @@ public class MCTNode {
       // if valid move AND not seen before
       // TODO: generate output based on whether a move has been seen before or not, for our human users.
       if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
-        this.actionToTry++;
+        atomic this.actionToTry++;
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
-      this.actionToTry++;
+      atomic this.actionToTry++;
     }
     
     // no more actions are possible.
@@ -164,11 +214,12 @@ public class MCTNode {
   }
 
   public def defaultPolicy(var positionsSeen:HashSet[Int], var currNode:MCTNode, val player:Boolean):Int {
-    
+    Console.OUT.println("playing a default policy.");
     var randomGameMoves:HashSet[Int] = positionsSeen.clone();
 
     var tempNode:MCTNode = currNode;
     while(tempNode != null && !tempNode.isLeaf()){
+      Console.OUT.println("looping in default policy.");
       tempNode = currNode.generateRandomChildState(randomGameMoves);
       if(tempNode != null) {
         currNode = tempNode;
@@ -225,9 +276,10 @@ public class MCTNode {
   }
 
   public def backProp(var currNode:MCTNode, val reward:Int):void {
+    Console.OUT.println("inside backprop.");
     while(currNode != null) {
-      currNode.timesVisited++;
-      currNode.aggReward += reward;
+      atomic currNode.timesVisited++;
+      atomic currNode.aggReward += reward;
       currNode = currNode.parent;
     }
   }
