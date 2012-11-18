@@ -93,7 +93,7 @@ public class MCTNode {
       // weight passing, so it's more attractive as the game progresses.
 
       // if the opponent passed and the computer is winning, it should pass and win
-      if(parent != null && parent.pass && (getMyScore() > getOppScore())) {
+      if(parent != null && parent.pass && (getMyScore() < getOppScore())) {
         Console.OUT.println("I SHOULD WIN NOW");
         weight = 1000; // computer should automatically win.
       } else {
@@ -139,13 +139,13 @@ public class MCTNode {
           async {
             var child:MCTNode = treePolicy(positionsSeen);
 
-            var outcome:Int = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
+            var outcome:Double = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
             backProp(child, outcome);
             atomic numAsyncsSpawned--;
           } // finish async
         } else {
           var child:MCTNode = treePolicy(positionsSeen);
-          var outcome:Int = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
+          var outcome:Double = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
           backProp(child, outcome);
         }
       } // end while.
@@ -222,7 +222,7 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Int {
+  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Double {
     //Console.OUT.println("playing a default policy.");
     var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
     randomGameMoves.add(currNode.state);
@@ -242,24 +242,24 @@ public class MCTNode {
   }
 
 
-  public def leafValue(var currNode:MCTNode):Int {
+  public def leafValue(var currNode:MCTNode):Double {
 
     // 'this' is the root of the current game subtree, so we know whose turn it is.
     if(turn == Stone.WHITE) { // stone is white
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        return 1;
+        return 1.0;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return -1;
+        return 0.0;
       } else {
-        return 0;
+        return 0.5;
       }
     } else { // stone is black
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        return -1;
+        return 0.0;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return 1;
+        return 1.0;
       } else {
-        return 0;
+        return 0.5;
       }
     }
   }
@@ -289,7 +289,7 @@ public class MCTNode {
   }
 
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
-  public def backProp(var currNode:MCTNode, val reward:Int):void {
+  public def backProp(var currNode:MCTNode, val reward:Double):void {
     //Console.OUT.println("inside backprop.");
     while(currNode != null) {
       //Console.OUT.println("backprop while loop.");
@@ -374,7 +374,7 @@ public class MCTNode {
   }
 
   public def getOppScore():Int {
-    return (turn == Stone.WHITE ? state.getWhiteScore() : state.getBlackScore());
+    return (turn == Stone.BLACK ? state.getWhiteScore() : state.getBlackScore());
   }
 
 
