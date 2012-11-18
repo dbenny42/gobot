@@ -6,8 +6,15 @@ import x10.util.Stack;
 
 public class BoardState {
 
+  private val HASH_NUM_WIDTH:Int = 20;
+  private val HASH_NUM_BASE:Int = 3;
+  private val MAX_BOARD_SIZE:Int = 400;
+
   private val height:Int;
   private val width:Int;
+  
+  private val hashNums:Array[Int];
+
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
@@ -26,11 +33,21 @@ public class BoardState {
   public def this(height:Int, width:Int) {
     this.height = height;
     this.width = width;
-    this.stones = new Array[Stone](height*width, Stone.EMPTY);
-    this.chains = new Array[Chain](height*width);
+    val numSpaces:Int = height*width;
+
+    if (numSpaces > MAX_BOARD_SIZE) {
+      throw new RuntimeException("Board sizes with > " + MAX_BOARD_SIZE + 
+				 " intersections are unsupported.");
+    }
+
+    this.stones = new Array[Stone](numSpaces, Stone.EMPTY);
+    this.chains = new Array[Chain](numSpaces);
 
     this.whiteScore = 0;
     this.blackScore = 0;
+
+    val numHashNums:Int = Math.ceil((numSpaces as Double)/HASH_NUM_WIDTH) as Int;
+    this.hashNums = new Array[Int](numHashNums, 0);
   }
 
   /**
@@ -42,29 +59,31 @@ public class BoardState {
   public def this(toCopy:BoardState) {
     this.height = toCopy.height;
     this.width = toCopy.width;
-    this.stones = new Array[Stone](toCopy.stones);
 
+    this.stones = new Array[Stone](toCopy.stones);
     this.chains = new Array[Chain](toCopy.chains);
 
     this.whiteScore = toCopy.whiteScore;
     this.blackScore = toCopy.blackScore;
+
+    this.hashNums = new Array[Int](toCopy.hashNums);
   }
-
-  // TODO: if this works, keep a field-version of this list.
-  public def listOfEmptyIdxs():ArrayList[Int] {
-    // TODO: fix init if this works.
-    var emptyIdxs:ArrayList[Int] = new ArrayList[Int](10);
-    for(var i:Int = 0; i < getSize(); i++) {
-      if(stones(i) == Stone.EMPTY) {
-        emptyIdxs.add(i);
-      }
-    }
-    return emptyIdxs;
-  }
-
-
 
   // assumes equal height and width
+  public def equals(toTest:BoardState) {
+    if (toTest.getSize() != this.getSize()) {
+      return Boolean.FALSE;
+    }
+
+    for(var i:Int = 0; i < hashNums.size; i++) {
+      if(toTest.hashNums(i) != this.hashNums(i)) {
+        return Boolean.FALSE;
+      }
+    }
+    return Boolean.TRUE;
+  }
+
+  /*
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
       if(toTest.stones(i) != this.stones(i)) {
@@ -72,8 +91,16 @@ public class BoardState {
       }
     }
     return Boolean.TRUE;
-  }
+  }*/
 
+  public def hashCode() {
+    var hash:Int = 0;
+    for(var i:Int = 0; i < hashNums.size; i++) {
+      hash+=hashNums(i);
+    }
+    return hash;
+  }
+  /*
   public def hashCode() {
     var str:String = "";
     for(s in this.stones.region) {
@@ -81,7 +108,7 @@ public class BoardState {
     }
 
     return str.hashCode();
-  }
+  }*/
 
   /**
    * Returns White's score for this board
@@ -230,8 +257,59 @@ public class BoardState {
    *   True if there is no stone at the given board index.
    */
   public def isEmptyAt(idx:Int):Boolean {
-    return (this.stoneAt(idx) == Stone.EMPTY);
+    return (Stone.canPlaceOn(this.stoneAt(idx)));
   }
+
+  public def addPiece(idx:Int, newPiece:Stone) {
+    if (Stone.canPlaceOn(newPiece)) {
+      throw new RuntimeException("Tried to add an empty-type stone.");
+    }
+    if (!Stone.canPlaceOn(this.stoneAt(idx))) {
+      throw new RuntimeException("Tried to add on top of non-empty-type " +
+				 "stone.");
+    }
+
+    val hashNumIdx = idx/HASH_NUM_WIDTH;
+    val hashNumOffset = idx%HASH_NUM_WIDTH;
+
+    val pieceValue:Int;
+    if (newPiece == Stone.BLACK)
+      pieceValue = 1;
+    else
+      pieceValue = 2;
+
+    this.hashNums(hashNumIdx) = (this.hashNums(hashNumIdx) + 
+				 pieceValue * 
+				 (Math.pow(HASH_NUM_BASE, 
+					   hashNumOffset) as Int));
+    this.stones(idx) = newPiece;
+  }
+
+  public def removePiece(idx:Int, newPiece:Stone) {
+    if (!Stone.canPlaceOn(newPiece)) {
+      throw new RuntimeException("Tried to remove with non-empty-type stone.");
+    }
+    if (Stone.canPlaceOn(this.stoneAt(idx))) {
+      throw new RuntimeException("Tried to remove empty-type stone");
+    }
+    
+    val hashNumIdx = idx/HASH_NUM_WIDTH;
+    val hashNumOffset = idx%HASH_NUM_WIDTH;
+
+    val oldPiece = this.stoneAt(idx);
+    val pieceValue:Int;
+    if (oldPiece == Stone.BLACK)
+      pieceValue = 1;
+    else
+      pieceValue = 2;
+
+    this.hashNums(hashNumIdx) = (this.hashNums(hashNumIdx) - 
+				 pieceValue *
+				 (Math.pow(HASH_NUM_BASE, 
+					   hashNumOffset) as Int));
+    this.stones(idx) = newPiece;
+  }
+
 
   /**
    * Place a stone at the given position, updating the board as necessary.
@@ -251,6 +329,7 @@ public class BoardState {
     val idx = getIdx(row, col);
     return doMove(idx, stone);
   }
+
 
   /**
    * Place a stone at the given index, updating the board as necessary.
@@ -285,7 +364,7 @@ public class BoardState {
     val newBoard:BoardState = new BoardState(this);
 
     // Push the stone into place
-    newBoard.stones(idx) = stone;
+    newBoard.addPiece(idx, stone);
 
     // Update chains
     var newChain:Chain = newBoard.makeChain(row, col, stone);
@@ -495,8 +574,8 @@ public class BoardState {
 
     for (memberIdx in toDie.getMembers()) {
       // Captured stones become opponent territory
-      this.stones(memberIdx) = 
-	Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone()));
+      this.removePiece(memberIdx, 
+		       Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone())));
       this.chains(memberIdx) = null;
     }
 
