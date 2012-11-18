@@ -14,19 +14,24 @@ public class MCTNode {
   static public val CHILDINITSIZE:Int = 10;
   static public val TIMEBOUND:Long = 10000; // 10s (10000ms)\
 
+
+
+
   // fields
-  public var parent:MCTNode;
+  private var parent:MCTNode;
   private val turn:Boolean; // Boolean.TRUE is black, FALSE is white ("little white lies")
   private var children:ArrayList[MCTNode];
   private var timesVisited:Int;
   private var aggReward:Double;
   private var state:BoardState;
-  public var pass:Boolean;
+  private var pass:Boolean;
   private var actionToTry:Int;
   private var realMove:MCTNode;
 
   private var numAsyncsSpawned:Int = 0;
   private val MAXASYNCS:Int = 24;
+
+
 
   // constructors
 
@@ -87,7 +92,7 @@ public class MCTNode {
   // TODO: update children to be a hashset, so this is a constant-time op.
   public def findMove(val stateToFind:BoardState) {
     for(var i:Int = 0; i < children.size(); i++) {
-      if(children(i).state == stateToFind) {
+      if(children(i).equals(stateToFind)) {
         Console.OUT.println("FOUND THE MOVE");
         return children(i);
       } 
@@ -97,20 +102,24 @@ public class MCTNode {
   }
 
 
-
-  public def getParent():MCTNode {
-    return parent;
-  }
-
   // methods
   public def computeUcb(val c:Double):Double{
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
     var ucb:Double = (aggReward / timesVisited) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited as Double))) / timesVisited));
+    var weight:Double;
+
     if(pass) {
       // weight passing, so it's more attractive as the game progresses.
-      var weight:Double = (((state.getWhiteScore() as Double)+ (state.getBlackScore() as Double)) / (4.0 * 4.0));
+
+      // if the opponent passed and the computer is winning, it should pass and win
+      if(parent != null && parent.pass && (getMyScore() > getOppScore())) {
+        weight = 1000; // computer should automatically win.
+      } else {
+        weight = (((state.getWhiteScore() as Double) + (state.getBlackScore() as Double)) / ((state.getHeight() as Double) * (state.getWidth() as Double)));
+      }
+
       ucb = ucb * weight;
     }
     return ucb;
@@ -365,7 +374,17 @@ public class MCTNode {
 
 
 
-  // getters / setters
+
+  public def getMyScore():Int {
+    return (turn ? state.getBlackScore() : state.getWhiteScore());
+  }
+
+  public def getOppScore():Int {
+    return (turn ? state.getWhiteScore() : state.getBlackScore());
+  }
+
+
+  // getters 
 
   public def getBoardState():BoardState {
     return state;
@@ -375,8 +394,18 @@ public class MCTNode {
     return children;
   }
 
+
+  public def getParent():MCTNode {
+    return parent;
+  }
+
+  public def getPass():Boolean {
+    return pass;
+  }
+
+  // setters
+
   public def setPass(val b:Boolean):void {
     pass = b;
   }
-
 }
