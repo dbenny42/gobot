@@ -163,7 +163,7 @@ public class BoardState {
   public def listOfEmptyIdxs():ArrayList[Int] {
     val spots:ArrayList[Int] = new ArrayList[Int]();
     for (var idx:Int = 0; idx < this.stones.size; idx++) {
-      if (Stones.canPlaceOn(this.stones(idx)))
+      if (Stone.canPlaceOn(this.stones(idx)))
 	spots.add(idx);
     }
     return spots;
@@ -393,7 +393,7 @@ public class BoardState {
     
     // Make sure we ARE pushing ONTO an empty stone
     val oldStone:Stone = this.stoneAt(idx);
-    Console.OUT.println("canPlaceOn is " + Stone.canPlaceOn(oldStone));
+    //Console.OUT.println("canPlaceOn is " + Stone.canPlaceOn(oldStone));
     if (!Stone.canPlaceOn(oldStone))
       return null;
 
@@ -416,7 +416,7 @@ public class BoardState {
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
     if (newChain == null || newChain.isDead()) {
-      Console.OUT.println("Failed because of suicide rule");
+      //Console.OUT.println("Failed because of suicide rule");
       return null;
     }
 
@@ -431,7 +431,7 @@ public class BoardState {
     // If we placed in the opponent's territory, the opponent loses that
     // territory block
     else if (oldStone == Stone.getTerritoryOf(Stone.getOpponentOf(stone))) {
-      Console.OUT.println("Starting fill on opponent territory");
+      //Console.OUT.println("Starting fill on opponent territory");
       val stonesFilled:Int = newBoard.doFill(row, col, oldStone, Stone.EMPTY);
       newBoard.addScore(-1*stonesFilled, Stone.getOpponentOf(stone));
       newBoard.addScore(-1, Stone.getOpponentOf(stone));
@@ -441,7 +441,7 @@ public class BoardState {
     // If we placed on an empty space, we should check to see if it buys us any
     // new territory
     else if (oldStone == Stone.EMPTY) {
-      Console.OUT.println("Starting fill on empty");
+      //Console.OUT.println("Starting fill on empty");
       val stonesFilled:Int = newBoard.doFill(row, col, Stone.EMPTY,
 					     Stone.getTerritoryOf(stone));
       newBoard.addScore(stonesFilled, stone);
@@ -470,7 +470,7 @@ public class BoardState {
     val expectedBound:Stone = Stone.getPieceOf(newStone);
     var numModified:Int = 0;
 
-    Console.OUT.println("Starting doFill");
+    //Console.OUT.println("Starting doFill");
 
     // Check bounds and gather indices
     val examined:HashSet[Int] = new HashSet[Int]();
@@ -517,12 +517,6 @@ public class BoardState {
 	else if (expectedBound != Stone.INVALID && 
 		 this.stones(adj) != expectedBound) {
 		   
-	  // TODO: Remove debug code
-	  if (Stone.canPlaceOn(this.stones(adj))) {
-	    Console.OUT.println("Illegal boundary found at " + adj +
-				". Bound was: " + this.stones(adj).desc());
-	  }
-
 	  return null;
 	}
       }
