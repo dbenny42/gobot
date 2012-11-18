@@ -141,6 +141,24 @@ public class BoardState {
     }
   }
 
+  public def listOfEmptyIdxs():ArrayList[Int] {
+    val spots:ArrayList[Int] = new ArrayList[Int]();
+    for (var idx:Int = 0; idx < this.stones.size; idx++) {
+      if (Stones.canPlaceOn(this.stones(idx)))
+	spots.add(idx);
+    }
+    return spots;
+  }
+
+  public def countStones(s:Stone) {
+    var count:Int = 0;
+    for (var idx:Int = 0; idx < this.stones.size; idx++) {
+      if (this.stones(idx) == s)
+	count++;
+    }
+    return count;
+  }
+
   /**
    * Returns which kind of stone is currently leading in points on this board.
    *
