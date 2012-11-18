@@ -38,7 +38,7 @@ public class Go {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the gobot is thinking....");
 
-    nodeToAdd = currNode.UCTSearch(positionsSeen, (toMove != Stone.BLACK ? Boolean.TRUE : Boolean.FALSE));
+    nodeToAdd = currNode.UCTSearch(positionsSeen, (toMove != Stone.BLACK ? Boolean.FALSE : Boolean.TRUE));
 
     Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
