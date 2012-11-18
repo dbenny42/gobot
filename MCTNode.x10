@@ -133,6 +133,7 @@ public class MCTNode {
               var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
               backProp(child, outcome);
               Console.OUT.println("async finishing while loop computation.");
+	      atomic numAsyncsSpawned--;
             }
           } // end async
         } else {
@@ -149,7 +150,6 @@ public class MCTNode {
         //Console.OUT.println("ending an iteration of the while loop.");
       } // end while.
       Console.OUT.println("an async has broken out of the while loop.");
-      atomic numAsyncsSpawned--;
     }
     Console.OUT.println("Still waiting on " + numAsyncsSpawned);
     when(numAsyncsSpawned == 0) {
