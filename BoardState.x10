@@ -130,6 +130,25 @@ public class BoardState {
     return this.blackScore;
   }
 
+
+  /*
+   * Returns:
+   * Board Height
+   */
+
+  public def getHeight():Int {
+    return this.height;
+  }
+
+  /*
+   * Returns:
+   * Board Width
+   */
+
+  public def getWidth():Int {
+    return this.width;
+  }
+
   /**
    * Adds a given quantity to the score associated with a stone type.
    */

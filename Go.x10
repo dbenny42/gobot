@@ -40,7 +40,7 @@ public class Go {
 
     nodeToAdd = currNode.UCTSearch(positionsSeen, (toMove != Stone.BLACK ? Boolean.TRUE : Boolean.FALSE));
 
-    Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.pass + ", and its parent's pass value: " + nodeToAdd.parent.pass);
+    Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
     //currNode.addRealMoveAsChild(nodeToAdd);
     
