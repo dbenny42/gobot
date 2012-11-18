@@ -37,13 +37,28 @@ public class Go {
   public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the gobot is thinking....");
-    
+
     nodeToAdd = currNode.UCTSearch(positionsSeen, (toMove != Stone.BLACK ? Boolean.TRUE : Boolean.FALSE));
-    currNode.addRealMoveAsChild(nodeToAdd);
+
+    Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.pass + ", and its parent's pass value: " + nodeToAdd.parent.pass);
+
+    //currNode.addRealMoveAsChild(nodeToAdd);
+    
     currNode = nodeToAdd;
+
+    if(!currNode.getChildren().isEmpty()) {
+      Console.OUT.println("the computer node has children, and here is one:");
+      Console.OUT.println("**************************************************");
+      Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
+      Console.OUT.println("**************************************************");
+    } else {
+      Console.OUT.println("the computer node has no children.");
+    }
+    
     Console.OUT.println("finished gobot turn.");
     return currNode;
   }
+
 
   public static def humanTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], var toMove:Stone, val HEIGHT:Int, val WIDTH:Int):MCTNode {
     var moveIdx:Int = 0;
@@ -57,20 +72,34 @@ public class Go {
       if(moveStr.equals("")) {
         Console.OUT.println("you appear to be passing.  We'll take that into account.");
 
-        var passNode:MCTNode = new MCTNode(currNode.getBoardState(), Boolean.TRUE);
-        currNode.addRealMoveAsChild(passNode);
-        return passNode;
+        //var passNode:MCTNode = new MCTNode(currNode, currNode.getBoardState(), Boolean.TRUE);
+        var passNode:MCTNode = currNode.addHumanMoveToOpponentGameTree(currNode.getBoardState());
+        passNode.setPass(Boolean.TRUE);
+        currNode = passNode;
+
+        // if(!currNode.getChildren().isEmpty()) {
+        //   Console.OUT.println("the human node has children, and here is one:");
+        //   Console.OUT.println("**************************************************");
+        //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
+        //   Console.OUT.println("**************************************************");
+        // } else {
+        //   Console.OUT.println("the human node has no children.");
+        // }
+
+        return currNode;
       }
 
       // TODO: change these magic numbers after testing.
       moveIdx = parseMove(moveStr, HEIGHT, WIDTH);
       tempState = currNode.getBoardState().doMove(moveIdx, toMove);
 
+
+
       if(tempState == null) {
         Console.OUT.println("this move is invalid.  try again.");
         continue;
-
       }
+
 
       if(positionsSeen.contains(tempState.hashCode())) {
         Console.OUT.println("this move has been seen before.");
@@ -78,18 +107,28 @@ public class Go {
       }
     }
 
-    var nodeToAdd:MCTNode = currNode.findOpponentMoveInChildren(tempState);
-    if(nodeToAdd == null) {
-      nodeToAdd = new MCTNode(tempState);
-    }
-
-    currNode.addRealMoveAsChild(nodeToAdd);
+    
+    // takes care of all of the game tree business:
+    var nodeToAdd:MCTNode = currNode.addHumanMoveToOpponentGameTree(tempState);
     currNode = nodeToAdd;
 
+    // if(!currNode.getChildren().isEmpty()) {
+    //   Console.OUT.println("the human node has children, and here is one:");
+    //   Console.OUT.println("**************************************************");
+    //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
+    //   Console.OUT.println("**************************************************");
+    // } else {
+    //   Console.OUT.println("the human node has no children.");
+    // }
+
+  
     return currNode;
   }
 
 
+  /*
+   * A game between one human player and one computer player.
+   */
   public static def singlePlayerGame(humanStone:Stone, gameTree:MCTNode, HEIGHT:Int, WIDTH:Int) {
 
     var toMove:Stone = Stone.BLACK;
@@ -122,6 +161,10 @@ public class Go {
     printWinner(currNode);
   }
 
+
+  /*
+   * A Game between two human players.
+   */
   public static def twoPlayerGame(var gameTree:MCTNode, var positionsSeen:HashSet[Int], HEIGHT:Int, WIDTH:Int) {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
@@ -135,6 +178,10 @@ public class Go {
     }
     printWinner(currNode);
   }
+
+
+
+
 
   // currently configured to play human against gobot.
   public static def main(var argv:Array[String]):void {
