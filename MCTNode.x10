@@ -137,7 +137,7 @@ public class MCTNode {
     return TIMEBOUND > diff;
   }
 
-  public def UCTSearch(var positionsSeen:HashSet[Int], val player:Boolean):MCTNode{
+  public def UCTSearch(var positionsSeen:HashSet[BoardState], val player:Boolean):MCTNode{
 
     //Console.OUT.println("current pass is: " + pass);
     val startTime:Long = Timer.milliTime();
@@ -164,22 +164,23 @@ public class MCTNode {
 
 
     var bestChild:MCTNode = getBestChild(0);
-    if(bestChild.computeUcb(0) < PASSFLOOR) {
-      //Console.OUT.println("best move below the passfloor.");
-      return new MCTNode(this, state, Boolean.TRUE);
-    } else {
-      if((parent != null) && parent.pass && (leafValue(this, player) > 0)) {
-        //Console.OUT.println("computer's about to win.");
-        return new MCTNode(this, state, Boolean.TRUE);
-      } else {
-        return bestChild;
-      }
-    }
+    // if(bestChild.computeUcb(0) < PASSFLOOR) {
+    //   //Console.OUT.println("best move below the passfloor.");
+    //   return new MCTNode(this, state, Boolean.TRUE);
+    // } else {
+    //   if((parent != null) && parent.pass && (leafValue(this, player) > 0)) {
+    //     //Console.OUT.println("computer's about to win.");
+    //     return new MCTNode(this, state, Boolean.TRUE);
+    //   } else {
+    //     return bestChild;
+    //   }
+    // }
 
+    return bestChild;
   }
 
 
-  public def treePolicy(var positionsSeen:HashSet[Int]):MCTNode{
+  public def treePolicy(var positionsSeen:HashSet[BoardState]):MCTNode{
 
     //Console.OUT.println("looping in tree policy.");
     var child:MCTNode = generateChild(positionsSeen);
@@ -204,7 +205,7 @@ public class MCTNode {
 
 
 
-  public def generateChild(var positionsSeen:HashSet[Int]):MCTNode {
+  public def generateChild(var positionsSeen:HashSet[BoardState]):MCTNode {
     //Console.OUT.println("inside generate child.");
     var stone:Stone = stoneFromTurn();
 
@@ -220,7 +221,7 @@ public class MCTNode {
       var possibleState:BoardState = state.doMove(actionToTry, stone);
 
       // if valid move AND not seen before
-      if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
+      if(possibleState != null && !positionsSeen.contains(possibleState)) {
         var newNode:MCTNode = new MCTNode(this, possibleState);
         atomic actionToTry++;
         return newNode;
@@ -233,9 +234,10 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[Int], var currNode:MCTNode, val player:Boolean):Int {
+  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode, val player:Boolean):Int {
     //Console.OUT.println("playing a default policy.");
-    var randomGameMoves:HashSet[Int] = positionsSeen.clone();
+    var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
+    randomGameMoves.add(currNode.state);
 
     var tempNode:MCTNode = currNode;
     while(tempNode != null && !tempNode.isLeaf()){
@@ -244,7 +246,7 @@ public class MCTNode {
       if(tempNode != null) {
         //Console.OUT.println("updating currnode in default policy.");
         currNode = tempNode;
-        randomGameMoves.add(currNode.state.hashCode());
+        randomGameMoves.add(currNode.state);
       }
     }
     //Console.OUT.println("about to return the leaf value.");
@@ -272,7 +274,7 @@ public class MCTNode {
     }
   }
 
-  public def generateRandomChildState(var randomGameMoves:HashSet[Int]):MCTNode {
+  public def generateRandomChildState(var randomGameMoves:HashSet[BoardState]):MCTNode {
     
     var stone:Stone = stoneFromTurn();
 
@@ -285,7 +287,7 @@ public class MCTNode {
 
     while(!emptyIdxs.isEmpty()) {
       //Console.OUT.println("working through generate random child state.");
-      if((childState != null) && !randomGameMoves.contains(childState.hashCode())) {
+      if((childState != null) && !randomGameMoves.contains(childState)) {
         //Console.OUT.println("about to return a new child node");
         return new MCTNode(this, childState);
       }

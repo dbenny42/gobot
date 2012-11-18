@@ -34,7 +34,7 @@ public class Go {
     }
   }
 
-  public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
+  public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[BoardState], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the gobot is thinking....");
 
@@ -60,11 +60,11 @@ public class Go {
   }
 
 
-  public static def humanTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], var toMove:Stone, val HEIGHT:Int, val WIDTH:Int):MCTNode {
+  public static def humanTurn(var currNode:MCTNode, var positionsSeen:HashSet[BoardState], var toMove:Stone, val HEIGHT:Int, val WIDTH:Int):MCTNode {
     var moveIdx:Int = 0;
     var moveStr:String = "";
     var tempState:BoardState = null;
-    while(tempState == null || positionsSeen.contains(tempState.hashCode())) {
+    while(tempState == null || positionsSeen.contains(tempState)) {
 
       Console.OUT.println("please enter your move.");
       moveStr = Console.IN.readLine();
@@ -101,7 +101,7 @@ public class Go {
       }
 
 
-      if(positionsSeen.contains(tempState.hashCode())) {
+      if(positionsSeen.contains(tempState)) {
         Console.OUT.println("this move has been seen before.");
         continue; // repeats loop without changing which player's turn it is.
       }
@@ -135,11 +135,10 @@ public class Go {
     var compuStone:Stone = (humanStone == Stone.BLACK) ? Stone.WHITE : Stone.BLACK;
     // tracks current position in the game tree.
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
-    var positionsSeen:HashSet[Int] = new HashSet[Int]();
+    var positionsSeen:HashSet[BoardState] = new HashSet[BoardState]();
     positionsSeen.clear();
 
-    // TODO: update this with Steve's new hashing function.
-    positionsSeen.add(gameTree.getBoardState().hashCode());
+    positionsSeen.add(gameTree.getBoardState());
 
     // if human is going first.
     // if(humanStone == Stone.BLACK) {
@@ -155,7 +154,7 @@ public class Go {
       } else {
         currNode = computerTurn(currNode, positionsSeen, toMove);
       }
-      positionsSeen.add(currNode.getBoardState().hashCode());
+      positionsSeen.add(currNode.getBoardState());
       toMove = changeToMove(toMove);
     }
     printWinner(currNode);
@@ -165,15 +164,15 @@ public class Go {
   /*
    * A Game between two human players.
    */
-  public static def twoPlayerGame(var gameTree:MCTNode, var positionsSeen:HashSet[Int], HEIGHT:Int, WIDTH:Int) {
+  public static def twoPlayerGame(var gameTree:MCTNode, var positionsSeen:HashSet[BoardState], HEIGHT:Int, WIDTH:Int) {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
-    positionsSeen.add(gameTree.getBoardState().hashCode());
+    positionsSeen.add(gameTree.getBoardState());
 
     while(!currNode.gameIsOver()) {
       Console.OUT.println(currNode.getBoardState().print());
       currNode = humanTurn(currNode, positionsSeen, toMove, HEIGHT, WIDTH);
-      positionsSeen.add(currNode.getBoardState().hashCode());
+      positionsSeen.add(currNode.getBoardState());
       toMove = changeToMove(toMove);
     }
     printWinner(currNode);
@@ -197,12 +196,12 @@ public class Go {
     val WIDTH = Int.parse(argv(1));
     val NUMHUMANS = Int.parse(argv(2));
 
-    var positionsSeen:HashSet[Int] = new HashSet[Int]();
+    var positionsSeen:HashSet[BoardState] = new HashSet[BoardState]();
     positionsSeen.clear();
     var tempState:BoardState = new BoardState(HEIGHT, WIDTH);
     var gameTree:MCTNode = new MCTNode(tempState);
 
-    positionsSeen.add(gameTree.getBoardState().hashCode());
+    positionsSeen.add(gameTree.getBoardState());
 
     if(NUMHUMANS == 1) {
       //Console.OUT.println("It looks like you're about to start a single-player game.  Enter 1 to play as black, 0 to play as white.");
