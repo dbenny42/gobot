@@ -24,7 +24,7 @@ public class Chain {
     this.members.add(idx);
     for (adjIdx in board.getAdjacentIndices(idx)) {
       this.adjacencies.add(adjIdx);
-      if (board.stoneAt(adjIdx) == stone.EMPTY)
+      if (Stone.canPlaceOn(board.stoneAt(adjIdx)))
 	this.liberties.add(adjIdx);
     }    
   }

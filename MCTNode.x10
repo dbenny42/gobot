@@ -66,9 +66,6 @@ public class MCTNode {
   }
 
 
-
-
-
   /* this function allows human moves to be added to the computer game
    * tree, so we don't have to recompute children in the computer game
    * tree.
@@ -152,10 +149,11 @@ public class MCTNode {
           atomic numAsyncsSpawned++;
           async {
             var child:MCTNode = treePolicy(positionsSeen);
+
             var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
             backProp(child, outcome);
             atomic numAsyncsSpawned--;
-          } // end async
+          } // finish async
         } else {
           var child:MCTNode = treePolicy(positionsSeen);
           var outcome:Int = defaultPolicy(positionsSeen, child, player); //uses the nodes' best descendant, generates an action.
@@ -203,6 +201,8 @@ public class MCTNode {
       return child;
     }
   }
+
+
 
   public def generateChild(var positionsSeen:HashSet[Int]):MCTNode {
     //Console.OUT.println("inside generate child.");

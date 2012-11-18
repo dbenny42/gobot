@@ -2,11 +2,19 @@ import x10.util.StringBuilder;
 import x10.util.HashSet;
 import x10.util.Pair;
 import x10.util.ArrayList;
+import x10.util.Stack;
 
 public class BoardState {
 
+  private val HASH_NUM_WIDTH:Int = 20;
+  private val HASH_NUM_BASE:Int = 3;
+  private val MAX_BOARD_SIZE:Int = 400;
+
   private val height:Int;
   private val width:Int;
+  
+  private val hashNums:Array[Int];
+
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
@@ -25,11 +33,21 @@ public class BoardState {
   public def this(height:Int, width:Int) {
     this.height = height;
     this.width = width;
-    this.stones = new Array[Stone](height*width, Stone.EMPTY);
-    this.chains = new Array[Chain](height*width);
+    val numSpaces:Int = height*width;
+
+    if (numSpaces > MAX_BOARD_SIZE) {
+      throw new RuntimeException("Board sizes with > " + MAX_BOARD_SIZE + 
+				 " intersections are unsupported.");
+    }
+
+    this.stones = new Array[Stone](numSpaces, Stone.EMPTY);
+    this.chains = new Array[Chain](numSpaces);
 
     this.whiteScore = 0;
     this.blackScore = 0;
+
+    val numHashNums:Int = Math.ceil((numSpaces as Double)/HASH_NUM_WIDTH) as Int;
+    this.hashNums = new Array[Int](numHashNums, 0);
   }
 
   /**
@@ -41,29 +59,31 @@ public class BoardState {
   public def this(toCopy:BoardState) {
     this.height = toCopy.height;
     this.width = toCopy.width;
-    this.stones = new Array[Stone](toCopy.stones);
 
+    this.stones = new Array[Stone](toCopy.stones);
     this.chains = new Array[Chain](toCopy.chains);
 
     this.whiteScore = toCopy.whiteScore;
     this.blackScore = toCopy.blackScore;
+
+    this.hashNums = new Array[Int](toCopy.hashNums);
   }
-
-  // TODO: if this works, keep a field-version of this list.
-  public def listOfEmptyIdxs():ArrayList[Int] {
-    // TODO: fix init if this works.
-    var emptyIdxs:ArrayList[Int] = new ArrayList[Int](10);
-    for(var i:Int = 0; i < getSize(); i++) {
-      if(stones(i) == Stone.EMPTY) {
-        emptyIdxs.add(i);
-      }
-    }
-    return emptyIdxs;
-  }
-
-
 
   // assumes equal height and width
+  public def equals(toTest:BoardState) {
+    if (toTest.getSize() != this.getSize()) {
+      return Boolean.FALSE;
+    }
+
+    for(var i:Int = 0; i < hashNums.size; i++) {
+      if(toTest.hashNums(i) != this.hashNums(i)) {
+        return Boolean.FALSE;
+      }
+    }
+    return Boolean.TRUE;
+  }
+
+  /*
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
       if(toTest.stones(i) != this.stones(i)) {
@@ -71,8 +91,16 @@ public class BoardState {
       }
     }
     return Boolean.TRUE;
-  }
+  }*/
 
+  public def hashCode() {
+    var hash:Int = 0;
+    for(var i:Int = 0; i < hashNums.size; i++) {
+      hash+=hashNums(i);
+    }
+    return hash;
+  }
+  /*
   public def hashCode() {
     var str:String = "";
     for(s in this.stones.region) {
@@ -80,7 +108,7 @@ public class BoardState {
     }
 
     return str.hashCode();
-  }
+  }*/
 
   /**
    * Returns White's score for this board
@@ -229,8 +257,59 @@ public class BoardState {
    *   True if there is no stone at the given board index.
    */
   public def isEmptyAt(idx:Int):Boolean {
-    return (this.stoneAt(idx) == Stone.EMPTY);
+    return (Stone.canPlaceOn(this.stoneAt(idx)));
   }
+
+  public def addPiece(idx:Int, newPiece:Stone) {
+    if (Stone.canPlaceOn(newPiece)) {
+      throw new RuntimeException("Tried to add an empty-type stone.");
+    }
+    if (!Stone.canPlaceOn(this.stoneAt(idx))) {
+      throw new RuntimeException("Tried to add on top of non-empty-type " +
+				 "stone.");
+    }
+
+    val hashNumIdx = idx/HASH_NUM_WIDTH;
+    val hashNumOffset = idx%HASH_NUM_WIDTH;
+
+    val pieceValue:Int;
+    if (newPiece == Stone.BLACK)
+      pieceValue = 1;
+    else
+      pieceValue = 2;
+
+    this.hashNums(hashNumIdx) = (this.hashNums(hashNumIdx) + 
+				 pieceValue * 
+				 (Math.pow(HASH_NUM_BASE, 
+					   hashNumOffset) as Int));
+    this.stones(idx) = newPiece;
+  }
+
+  public def removePiece(idx:Int, newPiece:Stone) {
+    if (!Stone.canPlaceOn(newPiece)) {
+      throw new RuntimeException("Tried to remove with non-empty-type stone.");
+    }
+    if (Stone.canPlaceOn(this.stoneAt(idx))) {
+      throw new RuntimeException("Tried to remove empty-type stone");
+    }
+    
+    val hashNumIdx = idx/HASH_NUM_WIDTH;
+    val hashNumOffset = idx%HASH_NUM_WIDTH;
+
+    val oldPiece = this.stoneAt(idx);
+    val pieceValue:Int;
+    if (oldPiece == Stone.BLACK)
+      pieceValue = 1;
+    else
+      pieceValue = 2;
+
+    this.hashNums(hashNumIdx) = (this.hashNums(hashNumIdx) - 
+				 pieceValue *
+				 (Math.pow(HASH_NUM_BASE, 
+					   hashNumOffset) as Int));
+    this.stones(idx) = newPiece;
+  }
+
 
   /**
    * Place a stone at the given position, updating the board as necessary.
@@ -250,6 +329,7 @@ public class BoardState {
     val idx = getIdx(row, col);
     return doMove(idx, stone);
   }
+
 
   /**
    * Place a stone at the given index, updating the board as necessary.
@@ -275,33 +355,145 @@ public class BoardState {
       return null;
     
     // Make sure we ARE pushing ONTO an empty stone
-    if (this.stoneAt(idx) != Stone.EMPTY)
+    val oldStone:Stone = this.stoneAt(idx);
+    Console.OUT.println("canPlaceOn is " + Stone.canPlaceOn(oldStone));
+    if (!Stone.canPlaceOn(oldStone))
       return null;
 
     // Copy the board so we can start modifying
     val newBoard:BoardState = new BoardState(this);
 
     // Push the stone into place
-    newBoard.stones(idx) = stone;
-    newBoard.addScore(1, stone);
-
+    newBoard.addPiece(idx, stone);
 
     // Update chains
     var newChain:Chain = newBoard.makeChain(row, col, stone);
 
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
+    var capturePoints:Int = 0;
     for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
-      newBoard.takeLibertyAndUpdate(oppChain, idx);
+      capturePoints += newBoard.takeLibertyAndUpdate(oppChain, idx);
     }
 
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
     if (newChain == null || newChain.isDead()) {
+      Console.OUT.println("Failed because of suicide rule");
       return null;
     }
 
+    // Compute changes to territory and score
+
+    // If we placed in our territory then there's no need to recompute territory
+    // even score stayes the same because we trade territory for a piece
+    if (oldStone == Stone.getTerritoryOf(stone)) {
+      // do nothing
+    }
+
+    // If we placed in the opponent's territory, the opponent loses that
+    // territory block
+    else if (oldStone == Stone.getTerritoryOf(Stone.getOpponentOf(stone))) {
+      Console.OUT.println("Starting fill on opponent territory");
+      val stonesFilled:Int = newBoard.doFill(row, col, oldStone, Stone.EMPTY);
+      newBoard.addScore(-1*stonesFilled, Stone.getOpponentOf(stone));
+      newBoard.addScore(-1, Stone.getOpponentOf(stone));
+      newBoard.addScore(1, stone);
+    }
+
+    // If we placed on an empty space, we should check to see if it buys us any
+    // new territory
+    else if (oldStone == Stone.EMPTY) {
+      Console.OUT.println("Starting fill on empty");
+      val stonesFilled:Int = newBoard.doFill(row, col, Stone.EMPTY,
+					     Stone.getTerritoryOf(stone));
+      newBoard.addScore(stonesFilled, stone);
+      newBoard.addScore(1, stone);
+    }
+
+    // Account for capture points
+    newBoard.addScore(capturePoints, stone);
+    newBoard.addScore(-1*capturePoints, Stone.getOpponentOf(stone));
     return newBoard;
+  }
+
+  /**
+   * Attempts to do a territory fill at (row, col). If a boundary stone is found
+   * that indicates the fill is unwarranted, no change occurs.
+   * 
+   * Args:
+   *   row: Row at which the fill is centered
+   *   col: Column at which the fill is centered
+   *   oldStone: Stone type of contiguous region that is being filled
+   *   newStone: Stone type to which the region should be filled
+   * Returns:
+   *   The number of stones modified.
+   */
+  private def doFill(row:Int, col:Int, oldStone:Stone, newStone:Stone):Int {
+    val expectedBound:Stone = Stone.getPieceOf(newStone);
+    var numModified:Int = 0;
+
+    Console.OUT.println("Starting doFill");
+
+    // Check bounds and gather indices
+    val examined:HashSet[Int] = new HashSet[Int]();
+    for (startIdx in getAdjacentIndices(row, col)) {
+      if (!examined.contains(startIdx)) {
+	val inFill:HashSet[Int] = this.fillSearch(startIdx, oldStone,
+						  expectedBound, examined);
+	if (inFill != null) {
+	  for (fillMemberIdx in inFill) {
+	    this.stones(fillMemberIdx) = newStone;
+	    numModified++;
+	  }
+	}
+      }
+    }
+
+    return numModified;
+  }
+
+
+  private def fillSearch(startIdx:Int, oldStone:Stone, expectedBound:Stone,
+			 examined:HashSet[Int]):HashSet[Int] {
+    val fringe:Stack[Int] = new Stack[Int]();
+    val inFill:HashSet[Int] = new HashSet[Int]();
+
+    examined.add(startIdx);
+    if (this.stones(startIdx) != oldStone)
+      return null;
+    
+    // Fill search
+    fringe.push(startIdx);
+    while(!fringe.isEmpty()) {
+      var toExpand:Int = fringe.pop();
+      for(adj in this.getAdjacentIndices(toExpand)) {
+
+	// If adjacent stone is part of fill region
+	if (this.stones(adj) == oldStone) {
+	  if (!inFill.contains(adj)) {
+	    fringe.push(adj);
+	  }
+	}
+	    
+	// If adjacent stone is an unexpected boundary piece
+	else if (expectedBound != Stone.INVALID && 
+		 this.stones(adj) != expectedBound) {
+		   
+	  // TODO: Remove debug code
+	  if (Stone.canPlaceOn(this.stones(adj))) {
+	    Console.OUT.println("Illegal boundary found at " + adj +
+				". Bound was: " + this.stones(adj).desc());
+	  }
+
+	  return null;
+	}
+      }
+      inFill.add(toExpand);
+      examined.add(toExpand);
+    }
+
+    return inFill;
   }
 
 
@@ -378,20 +570,21 @@ public class BoardState {
    * Args:
    *   toDie: Chain to kill.
    */
-  private def killChain(toDie:Chain) {
+  private def killChain(toDie:Chain):Int {
 
     for (memberIdx in toDie.getMembers()) {
-      this.stones(memberIdx) = Stone.EMPTY;
+      // Captured stones become opponent territory
+      this.removePiece(memberIdx, 
+		       Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone())));
       this.chains(memberIdx) = null;
     }
-
-    /* Subtract this chain's value from the appropriate score */
-    this.addScore(-1*toDie.getSize(), toDie.getStone());
 
     /* Inform this chain's neighbors of its death */
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
       addLibertiesAndUpdate(adjChain, toDie.getMembers());
     }
+
+    return toDie.getSize();
   }
 
   /**
@@ -456,15 +649,18 @@ public class BoardState {
 
   public def takeLibertyAndUpdate(toUpdate:Chain, idx:Int) {
     val newChain = toUpdate.takeLiberty(idx);
+    var spacesCaptured:Int = 0;
 
     if (newChain.isDead()) {
-      this.killChain(newChain);
+      spacesCaptured = this.killChain(newChain);
     }
     else {
       for (member in newChain.getMembers()) {
 	this.chains(member) = newChain;
       }
     }
+
+    return spacesCaptured;
   }
 
   public def mergeAndUpdate(toUpdate:Chain, idx:Int, toMerge:Chain) {
@@ -473,8 +669,6 @@ public class BoardState {
       this.chains(member) = newChain;
     }    
   }
-
-
 
 
   /**
