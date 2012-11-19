@@ -88,10 +88,10 @@ public class BoardState {
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
       if(toTest.stones(i) != this.stones(i)) {
-        return Boolean.FALSE;
+        return false;
       }
     }
-    return Boolean.TRUE;
+    return true;
   }
 
   /*

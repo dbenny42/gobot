@@ -73,7 +73,7 @@ public class Go {
 
         //var passNode:MCTNode = new MCTNode(currNode, currNode.getBoardState(), Boolean.TRUE);
         var passNode:MCTNode = currNode.addHumanMoveToOpponentGameTree(currNode.getBoardState());
-        passNode.setPass(Boolean.TRUE);
+        passNode.setPass(true);
         currNode = passNode;
 
         // if(!currNode.getChildren().isEmpty()) {

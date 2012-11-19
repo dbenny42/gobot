@@ -12,225 +12,262 @@ import x10.util.concurrent.Lock;
 public class MCTNode {
 
   static public val rand:Random = new Random(System.nanoTime());
-  static public val PASSFLOOR:Int = -1; // completely arbitrary at this point.
-  static public val TREEPOLICYCONSTANT:Double = .5; // used to compute UCB during tree policy.  Half goes to exploration; half to exploitation.
-  static public val CHILDINITSIZE:Int = 10;
-  static public val TIMEBOUND:Long = 10000; // 10s (10000ms)\
+
+  // used to compute UCB during tree policy.
+  static public val EXPLORE_PARAM:Double = .707; 
 
 
   // fields
   private var parent:MCTNode;
-  private val turn:Stone; // Boolean.TRUE is black, FALSE is white ("little white lies")
-  private var children:ArrayList[MCTNode];
+  private val turn:Stone;
+  private val children:ArrayList[MCTNode];
+  private val childrenLock:Lock;
   private val timesVisited:AtomicInteger;
   private val aggReward:AtomicDouble;
   private var state:BoardState;
   private var pass:Boolean;
   private var realMove:MCTNode;
-  private var listOfEmptyIdxs:ArrayList[Int];
+  private val unexploredMoves:ArrayList[Int];
+  private val unexploredMovesLock:Lock;
   private var expanded:Boolean;
-  private val emptyIdxLock:Lock;
+
 
 
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
-  private val MAXASYNCS:Int = 24;
+  private val x10_nthreads = 
+    Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
 
-
+  private val MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
+  private val MAX_PLACES:Int = Place.MAX_PLACES;
+  private val BATCH_SIZE:Int = 8;
+  private val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
+  private val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
   // constructors
 
   // the parent is in charge of generating board state, to make sure we
   // don't repeat ourselves.
-  public def this(var parent:MCTNode, var state:BoardState) {
-    this.parent = parent;
-    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
-    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
-    this.state = state;
-    this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
-    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
-    this.emptyIdxLock = new Lock();
-    this.children = new ArrayList[MCTNode](CHILDINITSIZE);
-    this.pass = Boolean.FALSE;
-    this.expanded = Boolean.FALSE;
+  public def this(state:BoardState) {
+    this(null, state, false);
   }
 
-  public def this(var parent:MCTNode, var state:BoardState, var pass:Boolean) {
+  public def this(parent:MCTNode, state:BoardState) {
+    this(parent, state, false);
+  }
+
+  public def this(parent:MCTNode, state:BoardState, pass:Boolean) {
     this.parent = parent;
     this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
     this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
-    this.children = new ArrayList[MCTNode](CHILDINITSIZE);
-    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
-    this.emptyIdxLock = new Lock();
-    this.expanded = Boolean.FALSE;
+    this.children = new ArrayList[MCTNode]();
+    this.childrenLock = new Lock();
+    this.unexploredMoves = state.listOfEmptyIdxs();
+    this.unexploredMovesLock = new Lock();
+    this.expanded = false;
    }
-
-  public def this(var state:BoardState) {
-    this.parent = null;
-    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
-    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
-    this.state = state;
-    this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
-    this.pass = Boolean.FALSE;
-    this.children = new ArrayList[MCTNode](CHILDINITSIZE);
-    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
-    this.emptyIdxLock = new Lock();
-    this.expanded = Boolean.FALSE;
-  }
-
 
   // methods
   public def computeUcb(val c:Double):Double{
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
+    if (timesVisited.get() == 0)
+      return Double.POSITIVE_INFINITY;
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
 
-    if(parent != null) {
-      if(turn == Stone.BLACK) {
-        //Console.OUT.println("my stone: black");
-      } else {
-        //Console.OUT.println("my stone: white");
-      }
-      //Console.OUT.println("pass: " + pass + ", parent.pass: " + parent.pass + ", my score: " + getMyScore() + ", opp score: " + getOppScore());
-    }
     if(pass) {
       // weight passing, so it's more attractive as the game progresses.
-
       // if the opponent passed and the computer is winning, it should pass and win
       if(parent != null && parent.pass && (getMyScore() < getOppScore())) {
-        //Console.OUT.println("I SHOULD WIN NOW");
         weight = 1000; // computer should automatically win.
       } else {
-        //Console.OUT.println("NON-WINNER.");
-        weight = (((state.getWhiteScore() as Double) + (state.getBlackScore() as Double)) / ((state.getHeight() as Double) * (state.getWidth() as Double)));
+        weight = (((state.getWhiteScore() as Double) + 
+		   (state.getBlackScore() as Double)) / 
+		  ((state.getHeight() as Double) * 
+		   (state.getWidth() as Double)));
       }
-
       ucb = ucb * weight;
+
     }
+
     return ucb;
   }
 
 
   public def getBestChild(val c:Double):MCTNode {
-    //Console.OUT.println("inside getbestchild.");
-    var bestVal:Double = -99;
+    var bestVal:Double = Double.NEGATIVE_INFINITY;
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < children.size(); i++) {
-      var currVal:Double = children(i).computeUcb(c);
+      val currChild:MCTNode = children(i);
+      val currVal:Double = currChild.computeUcb(c);
+
       //Console.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
         bestVal = currVal;
-        bestValArg = children(i);
+        bestValArg = currChild;
       }
+
     }
     return bestValArg;
   }
 
-  public def withinResourceBound(numDefaultPolicies:AtomicInteger, bound:Int):Boolean{
+  public def withinResourceBound(numDefaultPolicies:AtomicInteger,
+				 bound:Int):Boolean{
     return numDefaultPolicies.get() < bound;
   }
 
-  public def UCTSearch(var positionsSeen:HashSet[Int]):MCTNode{
+  public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode{
 
-    val NUMDEFAULTPOLICIESBOUND:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
-    //val NUMDEFAULTPOLICIESBOUND:Int = state.getWidth() * state.getWidth() * 3;
+    //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
+    val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
+
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
-    var defaultPolicyDepth:Int = (state.getWidth() * state.getWidth() / state.listOfEmptyIdxs().size()) * 40;
+    val defaultPolicyDepth:Int = (state.getSize() / 
+				  this.unexploredMoves.size()) * 40;
 
 
-
-    //Console.OUT.println("current pass is: " + pass);
     val startTime:Long = Timer.milliTime();
     numAsyncsSpawned.set(0);
-    
+
+    /*
+    val dp_result_region:Region = Region.make(0, MAX_DEFAULT_POLICIES);
+    val dp_results:DistArray[MCTNode] = 
+      DistArray.make[MCTNode](Dist.makeBlock(dp_result_region, 0));
+    val dp_nodes:ArrayList[MCTNode] = new ArrayList[MCTNode](MAX_DEFAULT_POLICIES);
+    for(childIdx in dp_result_region) {
+      var child:MCTNode = treePolicy(positionsSeen);
+      if (child == this)
+	break;
+      else
+	dp_nodes.add(child);
+    }
+
     finish {
-      while(withinResourceBound(numDefaultPolicies, NUMDEFAULTPOLICIESBOUND)) { // TODO: implement the resource bound.
-        //Console.OUT.println("the number of default policies is: " + numDefaultPolicies);
-        if(numAsyncsSpawned.get() < MAXASYNCS) {
+      for(dp_node_idx in 0..dp_nodes.size()) {
+	val start:MCTNode = dp_nodes.get(dp_node_idx);
+	at (dp_results.dist(dp_node_idx)) {
+	  async {
+	    val outcome:Double = defaultPolicy(positionsSeen, 
+					       start, defaultPolicyDepth);
+	    at (Place.FIRST_PLACE) {
+	      backProp(start, outcome);
+	    }
+	    dp_results(dp_node_idx) = start;
+	  }
+	}
+      }
+    }*/
+
+    /*finish {
+      while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
+
+        // Console.OUT.println("the number of default policies is: " + 
+	// 		    numDefaultPolicies);
+
+        if(numAsyncsSpawned.get() < MAX_ASYNCS) {
           numAsyncsSpawned.incrementAndGet();
           async {
             var child:MCTNode = treePolicy(positionsSeen);
+	    Console.OUT.println("treePolicy output - null = " + (child == null));
 
-            var outcome:Double = defaultPolicy(positionsSeen, child, defaultPolicyDepth); // uses the nodes' best descendant, generates an action.
+	    // uses the nodes' best descendant, generates an action.
+            var outcome:Double = defaultPolicy(positionsSeen, child,
+					       defaultPolicyDepth);
             numDefaultPolicies.incrementAndGet();
             backProp(child, outcome);
             numAsyncsSpawned.decrementAndGet();
-          } // finish async
+          } 
         } else {
+
           var child:MCTNode = treePolicy(positionsSeen);
-          var outcome:Double = defaultPolicy(positionsSeen, child, defaultPolicyDepth); //uses the nodes' best descendant, generates an action.
+	  Console.OUT.println("treePolicy output - null = " + (child == null));
+          var outcome:Double = defaultPolicy(positionsSeen, child,
+					     defaultPolicyDepth); 
           numDefaultPolicies.incrementAndGet();
           backProp(child, outcome);
         }
-      } // end while.
-    } // end finish
+      } 
+    }*/
+
+    while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
+
+      // Select BATCH_SIZE new MCTNodes to simulate using TP
+      val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
+      for(childIdx in 0..BATCH_SIZE) {
+	val child:MCTNode = treePolicy(positionsSeen);
+	if (child == this)
+	  break;
+	else
+	  dpNodes.add(child);
+      }
+
+      val dpNodeRegion:Region = Region.make(0, dpNodes.size());
+      val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
+
+      
+      finish for (dpNodeIdx in dpNodeRegion) {
+	val dpNode = dpNodes.get(dpNodeIdx(0));
+	at (d(dpNodeIdx)) {
+	  async {
+	    val outcome:Double = defaultPolicy(positionsSeen, dpNode,
+					       defaultPolicyDepth);
+	    numDefaultPolicies.incrementAndGet();
+	    backProp(dpNode, outcome);
+	  }
+	}
+      }
+    }
 
     var bestChild:MCTNode = getBestChild(0);
-
-    // if(bestChild.computeUcb(0) < PASSFLOOR) {
-    //   //Console.OUT.println("best move below the passfloor.");
-    //   return new MCTNode(this, state, Boolean.TRUE);
-    // } else {
-    //   if((parent != null) && parent.pass && (leafValue(this, stone) > 0)) {
-    //     //Console.OUT.println("computer's about to win.");
-    //     return new MCTNode(this, state, Boolean.TRUE);
-    //   } else {
-    //     return bestChild;
-    //   }
-    // }
-
     return bestChild;
   }
 
 
-  public def treePolicy(var positionsSeen:HashSet[Int]):MCTNode{
+  public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
 
-    //Console.OUT.println("looping in tree policy.");
     var child:MCTNode;
     child = generateChild(positionsSeen);
-    //Console.OUT.println("successfully generated a child.");
 
-    if(child == null) { // indicates a leaf OR all kids generated; couldn't generate a child.
+    // no children (leaf or all children)
+    if(child == null) { 
       if(children.isEmpty()){
-        //Console.OUT.println("no children.");
-        return this; // this is the best already-expanded child.  cherish it.
+        return this;
       } else {
         // recursive descent through the tree, best choice at each step:
-        //Console.OUT.println("about to recurse.");
-        return getBestChild(TREEPOLICYCONSTANT).treePolicy(positionsSeen);
+	val bc = getBestChild(EXPLORE_PARAM);
+
+	// Remember to add this node to the new list of positions seen
+	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
+	newPositionsSeen.add(this.state.hashCode());
+
+        return bc.treePolicy(newPositionsSeen);
       }
     } else {
-      children.add(child); // add to list.
-      //Console.OUT.println("made a new child, returning.");
-
+      children.add(child);
       return child;
     }
   }
 
 
-
-  public def generateChild(var positionsSeen:HashSet[Int]):MCTNode {
+  public def generateChildNoModify(positionsSeen:HashSet[Int]):MCTNode {
     //Console.OUT.println("inside generate child.");
     //generate the passing child
-    if(listOfEmptyIdxs.isEmpty() && !expanded) {
-      //Console.OUT.println("generating the passing move.");
-      expanded = Boolean.TRUE;
-      return new MCTNode(this, state, Boolean.TRUE);
-    }
 
-    while(!listOfEmptyIdxs.isEmpty()) {
+    val possibleMoves = unexploredMoves.clone();
+    while(!possibleMoves.isEmpty()) {
       //Console.OUT.println("looping inside genchild");
       var randIdx:Int;
+      var possibleState:BoardState = null;
 
-      while(!emptyIdxLock.tryLock());
-      randIdx = rand.nextInt(listOfEmptyIdxs.size());
-      var possibleState:BoardState = state.doMove(listOfEmptyIdxs(randIdx), turn);
-      listOfEmptyIdxs.removeAt(randIdx);
-      emptyIdxLock.unlock();
+      if (unexploredMoves.size() > 0) {
+	randIdx = rand.nextInt(possibleMoves.size());
+	possibleState = state.doMove(possibleMoves(randIdx), turn);
+	possibleMoves.removeAt(randIdx);
+      }
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
@@ -241,67 +278,93 @@ public class MCTNode {
     }
     
     // no more actions are possible.
+    return new MCTNode(this, state, true);
+  }
+
+  public def generateChild(positionsSeen:HashSet[Int]):MCTNode {
+    //Console.OUT.println("inside generate child.");
+    //generate the passing child
+
+    if(unexploredMoves.isEmpty() && !expanded) {
+      //Console.OUT.println("generating the passing move.");
+      expanded = true;
+      return new MCTNode(this, state, true);
+    }
+
+    while(!unexploredMoves.isEmpty()) {
+      //Console.OUT.println("looping inside genchild");
+      var randIdx:Int;
+      var possibleState:BoardState = null;
+
+      if (unexploredMoves.size() > 0) {
+	randIdx = rand.nextInt(unexploredMoves.size());
+	possibleState = state.doMove(unexploredMoves(randIdx), turn);
+	unexploredMoves.removeAt(randIdx);
+      }
+
+      // if valid move (doMove catches invalid, save Ko) AND not seen
+      // before (Ko)
+      if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
+        var newNode:MCTNode = new MCTNode(this, possibleState);
+        return newNode;
+      }
+    }
+
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[Int], var currNode:MCTNode, var maxDepth:Int):Double {
-
-    var currDepth:Int = 0;
+  public def defaultPolicy(val positionsSeen:HashSet[Int],
+			   val startNode:MCTNode,
+			   val maxDepth:Int):Double {
 
     //Console.OUT.println("playing a default policy.");
-    var randomGameMoves:HashSet[Int] = positionsSeen.clone();
-    randomGameMoves.add(currNode.state.hashCode());
+    val dp_value_total = new AtomicDouble(0.0);
 
-    var tempNode:MCTNode = currNode;
-    while(tempNode != null && !tempNode.isLeaf() && currDepth < maxDepth) {
-      //Console.OUT.println("looping in default policy.");
-      tempNode = currNode.generateRandomChildState(randomGameMoves);
-      if(tempNode != null) {
-        //Console.OUT.println("updating currnode in default policy.");
-        currNode = tempNode;
-        randomGameMoves.add(currNode.state.hashCode());
+    finish {
+      for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
+	async {
+	  var currNode:MCTNode = startNode;
+	  var tempNode:MCTNode;
+	  var currDepth:Int = 0;
+	  val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+	  randomGameMoves.add(currNode.state.hashCode());
+	  while(currNode != null && !currNode.isLeaf() && currDepth < maxDepth) {
+	    // TODO: does this really need to be generateRandomChildState()?
+	    tempNode = currNode.generateChildNoModify(randomGameMoves);
+	    if(tempNode != null) {
+              currNode = tempNode;
+              randomGameMoves.add(currNode.state.hashCode());
+	    }
+	    currDepth++;
+	  }
+	  dp_value_total.getAndAdd(leafValue(currNode));				 
+	}
       }
-
-      currDepth++;
     }
-    //Console.OUT.println("about to return the leaf value.");
-    return leafValue(currNode);
+    return dp_value_total.get()/MAX_DP_PATHS;
   }
 
 
   public def leafValue(var currNode:MCTNode):Double {
-
-    // 'this' is the root of the current game subtree, so we know whose turn it is.
-    if(turn == Stone.WHITE) { // stone is white
-      if(currNode.state.currentLeader() == Stone.WHITE) {
-        return 1.0;
-      } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return 0.0;
-      } else {
-        return 0.5;
-      }
-    } else { // stone is black
-      if(currNode.state.currentLeader() == Stone.WHITE) {
-        return 0.0;
-      } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return 1.0;
-      } else {
-        return 0.5;
-      }
-    }
+    if (currNode.state.currentLeader() == turn)
+      return 1.0;
+    else if (currNode.state.currentLeader() == Stone.getOpponentOf(turn))
+      return 0.0;
+    else
+      return 0.5;
   }
 
-
+/*
   public def generateRandomChildState(var randomGameMoves:HashSet[Int]):MCTNode {
-    // 1: get an arraylist of the empty squares, generate one of THOSE randomly, remove it if it's an invalid move, and 
-    var emptyIdxs:ArrayList[Int] = state.listOfEmptyIdxs();
+    var emptyIdxs:ArrayList[Int] = state.unexploredMoves();
     var randIdx:Int = rand.nextInt(emptyIdxs.size());
     var childState:BoardState = state.doMove(emptyIdxs.get(randIdx), turn);
     emptyIdxs.removeAt(randIdx);
 
     while(!emptyIdxs.isEmpty()) {
       //Console.OUT.println("working through generate random child state.");
-      if((childState != null) && !randomGameMoves.contains(childState.hashCode())) {
+      if((childState != null) && 
+	 !randomGameMoves.contains(childState.hashCode())) {
         //Console.OUT.println("about to return a new child node");
         return new MCTNode(this, childState);
       }
@@ -314,20 +377,16 @@ public class MCTNode {
     }
     //Console.OUT.println("finished with generate random child state.");
     return null;
-  }
+  }*/
 
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
-    //Console.OUT.println("inside backprop.");
     while(currNode != null) {
-      //Console.OUT.println("backprop while loop.");
       currNode.timesVisited.incrementAndGet();
       currNode.aggReward.addAndGet(reward);
       currNode = currNode.parent;
     }
   }
-
-
 
   /* this function allows human moves to be added to the computer game
    * tree, so we don't have to recompute children in the computer game
@@ -351,51 +410,41 @@ public class MCTNode {
   public def findMove(val stateToFind:BoardState) {
     for(var i:Int = 0; i < children.size(); i++) {
       if(children(i).equals(stateToFind)) {
-        //Console.OUT.println("FOUND THE MOVE");
         return children(i);
       } 
     }
-    //Console.OUT.println("did not find move in opponent's game tree.");
     return null;
   }
 
-
-
-
+  // TODO: Make sure !validMoveLeft() is still OK
   public def isLeaf():Boolean {
-    // something is a leaf when it either has no valid moves, or both the preceding boards were 'passes'.
-    
+    // leaf: no valid moves or two preceding moves were passes    
     return isLeafOnPasses() || !validMoveLeft();
   }
 
   public def isLeafOnPasses():Boolean {
-    val res:Boolean = (parent != null && parent.parent != null && parent.pass && parent.parent.pass);
-    return res;
+    return (parent != null && 
+	    parent.parent != null && 
+	    parent.pass && 
+	    parent.parent.pass);
   }
 
   public def validMoveLeft():Boolean {
     for(var i:Int = 0; i < state.getSize(); i++) {
       if(state.doMove(i, turn) != null) {
-        return Boolean.TRUE;
+        return true;
       }
     }
-    return Boolean.FALSE;
+    return false;
   }
 
-
-  // done when two consecutive turns are passes.
   public def gameIsOver():Boolean {
     if(parent != null) {
-      //Console.OUT.println("pass: " + pass + ", and parent.pass: " + parent.pass);
       return pass && parent.pass;
     } else {
-      //Console.OUT.println("parent is null.");
       return false;
     }
   }
-
-
-
 
   public def getMyScore():Int {
     return (turn == Stone.BLACK ? state.getBlackScore() : state.getWhiteScore());
@@ -405,9 +454,6 @@ public class MCTNode {
     return (turn == Stone.BLACK ? state.getWhiteScore() : state.getBlackScore());
   }
 
-
-  // getters 
-
   public def getBoardState():BoardState {
     return state;
   }
@@ -416,7 +462,6 @@ public class MCTNode {
     return children;
   }
 
-
   public def getParent():MCTNode {
     return parent;
   }
@@ -424,8 +469,6 @@ public class MCTNode {
   public def getPass():Boolean {
     return pass;
   }
-
-  // setters
 
   public def setPass(val b:Boolean):void {
     pass = b;
