@@ -25,8 +25,9 @@ public class MCTNode {
   private var aggReward:Double;
   private var state:BoardState;
   private var pass:Boolean;
-  private var actionToTry:Int;
   private var realMove:MCTNode;
+  private var listOfEmptyIdxs:ArrayList[Int];
+  private var expanded:Boolean;
 
   private var numAsyncsSpawned:Int = 0;
   private val MAXASYNCS:Int = 24;
@@ -43,9 +44,10 @@ public class MCTNode {
     this.aggReward = 0.0; // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
-    this.actionToTry = 0;
+    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.pass = Boolean.FALSE;
+    this.expanded = Boolean.FALSE;
   }
 
   public def this(var parent:MCTNode, var state:BoardState, var pass:Boolean) {
@@ -56,7 +58,8 @@ public class MCTNode {
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
-    this.actionToTry = 0;
+    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
+    this.expanded = Boolean.FALSE;
    }
 
   public def this(var state:BoardState) {
@@ -67,10 +70,9 @@ public class MCTNode {
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = Boolean.FALSE;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
-    this.actionToTry = 0;
+    this.listOfEmptyIdxs = state.listOfEmptyIdxs();
+    this.expanded = Boolean.FALSE;
   }
-
-
 
 
   // methods
@@ -83,21 +85,21 @@ public class MCTNode {
 
     if(parent != null) {
       if(turn == Stone.BLACK) {
-        Console.OUT.println("my stone: black");
+        //Console.OUT.println("my stone: black");
       } else {
-        Console.OUT.println("my stone: white");
+        //Console.OUT.println("my stone: white");
       }
-      Console.OUT.println("pass: " + pass + ", parent.pass: " + parent.pass + ", my score: " + getMyScore() + ", opp score: " + getOppScore());
+      //Console.OUT.println("pass: " + pass + ", parent.pass: " + parent.pass + ", my score: " + getMyScore() + ", opp score: " + getOppScore());
     }
     if(pass) {
       // weight passing, so it's more attractive as the game progresses.
 
       // if the opponent passed and the computer is winning, it should pass and win
-      if(parent != null && parent.pass && (getMyScore() > getOppScore())) {
-        Console.OUT.println("I SHOULD WIN NOW");
+      if(parent != null && parent.pass && (getMyScore() < getOppScore())) {
+        //Console.OUT.println("I SHOULD WIN NOW");
         weight = 1000; // computer should automatically win.
       } else {
-        Console.OUT.println("NON-WINNER.");
+        //Console.OUT.println("NON-WINNER.");
         weight = (((state.getWhiteScore() as Double) + (state.getBlackScore() as Double)) / ((state.getHeight() as Double) * (state.getWidth() as Double)));
       }
 
@@ -113,7 +115,7 @@ public class MCTNode {
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < children.size(); i++) {
       var currVal:Double = children(i).computeUcb(c);
-      Console.OUT.println("children(" + i + ") ucb: " + currVal);
+      //Console.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
         bestVal = currVal;
         bestValArg = children(i);
@@ -139,13 +141,13 @@ public class MCTNode {
           async {
             var child:MCTNode = treePolicy(positionsSeen);
 
-            var outcome:Int = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
+            var outcome:Double = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
             backProp(child, outcome);
             atomic numAsyncsSpawned--;
           } // finish async
         } else {
           var child:MCTNode = treePolicy(positionsSeen);
-          var outcome:Int = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
+          var outcome:Double = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
           backProp(child, outcome);
         }
       } // end while.
@@ -198,31 +200,31 @@ public class MCTNode {
   public def generateChild(var positionsSeen:HashSet[BoardState]):MCTNode {
     //Console.OUT.println("inside generate child.");
     //generate the passing child
-    if(actionToTry == state.getSize()) {
+    if(listOfEmptyIdxs.isEmpty() && !expanded) {
       //Console.OUT.println("generating the passing move.");
-      atomic actionToTry++;
+      expanded = Boolean.TRUE;
       return new MCTNode(this, state, Boolean.TRUE);
     }
 
-    while(actionToTry < state.getSize()) {
+    while(!listOfEmptyIdxs.isEmpty()) {
       //Console.OUT.println("looping inside genchild");
-      var possibleState:BoardState = state.doMove(actionToTry, turn);
+      var randIdx:Int = rand.nextInt(listOfEmptyIdxs.size());
+      var possibleState:BoardState = state.doMove(listOfEmptyIdxs(randIdx), turn);
+      listOfEmptyIdxs.removeAt(randIdx);
 
-      // if valid move AND not seen before
+      // if valid move (doMove catches invalid, save Ko) AND not seen
+      // before (Ko)
       if(possibleState != null && !positionsSeen.contains(possibleState)) {
         var newNode:MCTNode = new MCTNode(this, possibleState);
-        atomic actionToTry++;
         return newNode;
       }
-
-      atomic actionToTry++;
     }
     
     // no more actions are possible.
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Int {
+  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Double {
     //Console.OUT.println("playing a default policy.");
     var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
     randomGameMoves.add(currNode.state);
@@ -242,24 +244,24 @@ public class MCTNode {
   }
 
 
-  public def leafValue(var currNode:MCTNode):Int {
+  public def leafValue(var currNode:MCTNode):Double {
 
     // 'this' is the root of the current game subtree, so we know whose turn it is.
     if(turn == Stone.WHITE) { // stone is white
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        return 1;
+        return 1.0;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return -1;
+        return 0.0;
       } else {
-        return 0;
+        return 0.5;
       }
     } else { // stone is black
       if(currNode.state.currentLeader() == Stone.WHITE) {
-        return -1;
+        return 0.0;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
-        return 1;
+        return 1.0;
       } else {
-        return 0;
+        return 0.5;
       }
     }
   }
@@ -289,7 +291,7 @@ public class MCTNode {
   }
 
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
-  public def backProp(var currNode:MCTNode, val reward:Int):void {
+  public def backProp(var currNode:MCTNode, val reward:Double):void {
     //Console.OUT.println("inside backprop.");
     while(currNode != null) {
       //Console.OUT.println("backprop while loop.");
@@ -323,11 +325,11 @@ public class MCTNode {
   public def findMove(val stateToFind:BoardState) {
     for(var i:Int = 0; i < children.size(); i++) {
       if(children(i).equals(stateToFind)) {
-        Console.OUT.println("FOUND THE MOVE");
+        //Console.OUT.println("FOUND THE MOVE");
         return children(i);
       } 
     }
-    Console.OUT.println("did not find move in opponent's game tree.");
+    //Console.OUT.println("did not find move in opponent's game tree.");
     return null;
   }
 
@@ -374,7 +376,7 @@ public class MCTNode {
   }
 
   public def getOppScore():Int {
-    return (turn == Stone.WHITE ? state.getWhiteScore() : state.getBlackScore());
+    return (turn == Stone.BLACK ? state.getWhiteScore() : state.getBlackScore());
   }
 
 
