@@ -70,6 +70,7 @@ public class BoardState {
   }
 
   // assumes equal height and width
+  /*
   public def equals(toTest:BoardState) {
     if (toTest.getSize() != this.getSize()) {
       return Boolean.FALSE;
@@ -81,9 +82,9 @@ public class BoardState {
       }
     }
     return Boolean.TRUE;
-  }
+  }*/
 
-  /*
+
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
       if(toTest.stones(i) != this.stones(i)) {
@@ -91,24 +92,25 @@ public class BoardState {
       }
     }
     return Boolean.TRUE;
-  }*/
+  }
 
+  /*
   public def hashCode() {
     var hash:Int = 0;
     for(var i:Int = 0; i < hashNums.size; i++) {
       hash+=hashNums(i);
     }
     return hash;
-  }
-  /*
+  }*/
+
   public def hashCode() {
-    var str:String = "";
+    val sb = new StringBuilder();
     for(s in this.stones.region) {
-      str = str + stones(s).repr();
+      sb.add(""+this.stones(s).repr());
     }
 
-    return str.hashCode();
-  }*/
+    return sb.result().hashCode();
+  }
 
   /**
    * Returns White's score for this board
