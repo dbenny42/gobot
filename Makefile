@@ -8,7 +8,7 @@ Play: Go
 	./Go 7 7 1
 
 Test: BoardTest
-	./BoardTest 7 7
+	./BoardTest 4 4
 
 .PHONY: clean
 

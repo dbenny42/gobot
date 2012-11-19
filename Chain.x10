@@ -1,4 +1,5 @@
 import x10.util.HashSet;
+import x10.util.StringBuilder;
 
 public class Chain {
 
@@ -38,6 +39,47 @@ public class Chain {
     this.adjacencies = toCopy.getAdjacencies();
     this.liberties = toCopy.getLiberties();
   }
+
+  public def toString():String {
+    val sb = new StringBuilder();
+    
+    sb.add(this.stone.desc() + " chain ");
+    sb.add("with members {");
+    for (member in this.members) {
+      sb.add(member+", ");
+    }
+    sb.add("} and liberties {");
+    for (lib in this.liberties) {
+      sb.add(lib + ", ");
+    }
+    sb.add("}");
+    return sb.result();
+  }
+
+/*
+  public def equals(c:Chain):Boolean {
+    if (this.stone != c.stone)
+      return false;
+    
+    val myMem = this.members.clone();
+    val otherMem = c.members.clone();
+    val myLib = this.liberties.clone();
+    val otherLib = this.liberties.clone();
+
+    if (!(myMem.containsAll(otherMem) && otherMem.containsAll(myMem)))
+      return false;
+
+    if (!(myLib.containsAll(otherLib) && otherLib.containsAll(myLib)))
+      return false;
+
+    return true;
+  }
+
+  public def hashCode():Int {
+    
+
+  }
+*/
 
   /**
    * Returns a copy of this Chain's member set

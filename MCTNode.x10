@@ -19,7 +19,7 @@ public class MCTNode {
 
   // fields
   private var parent:MCTNode;
-  private val turn:Boolean; // Boolean.TRUE is black, FALSE is white ("little white lies")
+  private val turn:Stone; // Boolean.TRUE is black, FALSE is white ("little white lies")
   private var children:ArrayList[MCTNode];
   private var timesVisited:Int;
   private var aggReward:Double;
@@ -42,7 +42,7 @@ public class MCTNode {
     this.timesVisited = 0; // only gets incremented during backprop.
     this.aggReward = 0.0; // gets set during backprop.
     this.state = state;
-    this.turn = parent == null ? Boolean.FALSE : parent.turn ^ Boolean.TRUE; // XOR T flips the bit.  TODO: optimize the inital setting so we don't have to check for null parent on every node generated.
+    this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.actionToTry = 0;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.pass = Boolean.FALSE;
@@ -53,7 +53,7 @@ public class MCTNode {
     this.timesVisited = 0; //only gets incremented during backprop.
     this.aggReward = 0.0; // gets set during backprop.
     this.state = state;
-    this.turn = parent == null ? Boolean.TRUE : parent.turn ^ Boolean.TRUE; // XOR T flips the bit.  TODO: optimize the inital setting so we don't have to check for null parent on every node generated.
+    this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.actionToTry = 0;
@@ -64,42 +64,13 @@ public class MCTNode {
     this.timesVisited = 0; // only gets incremented during backprop.
     this.aggReward = 0.0; // gets set during backprop.
     this.state = state;
-    this.turn = parent == null ? Boolean.TRUE : parent.turn ^ Boolean.TRUE; // XOR T flips the bit.  TODO: optimize the inital setting so we don't have to check for null parent on every node generated.
+    this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = Boolean.FALSE;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.actionToTry = 0;
   }
 
 
-  /* this function allows human moves to be added to the computer game
-   * tree, so we don't have to recompute children in the computer game
-   * tree.
-   *
-   * If the proper node is found in the opponent's game tree, it is
-   * returned to be set as currNode. (to preserve computer's game tree structure)
-   *
-   * Otherwise, the humanMove node that was passed in is returned.
-   */
-  public def addHumanMoveToOpponentGameTree(val humanMove:BoardState):MCTNode {
-    val existingNode:MCTNode = findMove(humanMove);
-    if(existingNode != null) {
-      return existingNode;
-    } else {
-      return new MCTNode(this, humanMove); // this constructor sets the parent.
-    }
-  }
-
-  // TODO: update children to be a hashset, so this is a constant-time op.
-  public def findMove(val stateToFind:BoardState) {
-    for(var i:Int = 0; i < children.size(); i++) {
-      if(children(i).equals(stateToFind)) {
-        Console.OUT.println("FOUND THE MOVE");
-        return children(i);
-      } 
-    }
-    Console.OUT.println("did not find move in opponent's game tree.");
-    return null;
-  }
 
 
   // methods
@@ -110,13 +81,23 @@ public class MCTNode {
     var ucb:Double = (aggReward / timesVisited) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited as Double))) / timesVisited));
     var weight:Double;
 
+    if(parent != null) {
+      if(turn == Stone.BLACK) {
+        Console.OUT.println("my stone: black");
+      } else {
+        Console.OUT.println("my stone: white");
+      }
+      Console.OUT.println("pass: " + pass + ", parent.pass: " + parent.pass + ", my score: " + getMyScore() + ", opp score: " + getOppScore());
+    }
     if(pass) {
       // weight passing, so it's more attractive as the game progresses.
 
       // if the opponent passed and the computer is winning, it should pass and win
       if(parent != null && parent.pass && (getMyScore() > getOppScore())) {
+        Console.OUT.println("I SHOULD WIN NOW");
         weight = 1000; // computer should automatically win.
       } else {
+        Console.OUT.println("NON-WINNER.");
         weight = (((state.getWhiteScore() as Double) + (state.getBlackScore() as Double)) / ((state.getHeight() as Double) * (state.getWidth() as Double)));
       }
 
@@ -132,7 +113,7 @@ public class MCTNode {
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < children.size(); i++) {
       var currVal:Double = children(i).computeUcb(c);
-      
+      Console.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
         bestVal = currVal;
         bestValArg = children(i);
@@ -146,11 +127,10 @@ public class MCTNode {
     return TIMEBOUND > diff;
   }
 
-  public def UCTSearch(var positionsSeen:HashSet[BoardState], val player:Boolean):MCTNode{
+  public def UCTSearch(var positionsSeen:HashSet[BoardState]):MCTNode{
 
     //Console.OUT.println("current pass is: " + pass);
     val startTime:Long = Timer.milliTime();
-    var passChild:MCTNode = null;
 
     finish {
       while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
@@ -159,13 +139,13 @@ public class MCTNode {
           async {
             var child:MCTNode = treePolicy(positionsSeen);
 
-            var outcome:Int = defaultPolicy(positionsSeen, child, player); // uses the nodes' best descendant, generates an action.
+            var outcome:Int = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
             backProp(child, outcome);
             atomic numAsyncsSpawned--;
           } // finish async
         } else {
           var child:MCTNode = treePolicy(positionsSeen);
-          var outcome:Int = defaultPolicy(positionsSeen, child, player); //uses the nodes' best descendant, generates an action.
+          var outcome:Int = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
           backProp(child, outcome);
         }
       } // end while.
@@ -173,11 +153,12 @@ public class MCTNode {
 
 
     var bestChild:MCTNode = getBestChild(0);
+
     // if(bestChild.computeUcb(0) < PASSFLOOR) {
     //   //Console.OUT.println("best move below the passfloor.");
     //   return new MCTNode(this, state, Boolean.TRUE);
     // } else {
-    //   if((parent != null) && parent.pass && (leafValue(this, player) > 0)) {
+    //   if((parent != null) && parent.pass && (leafValue(this, stone) > 0)) {
     //     //Console.OUT.println("computer's about to win.");
     //     return new MCTNode(this, state, Boolean.TRUE);
     //   } else {
@@ -216,8 +197,6 @@ public class MCTNode {
 
   public def generateChild(var positionsSeen:HashSet[BoardState]):MCTNode {
     //Console.OUT.println("inside generate child.");
-    var stone:Stone = stoneFromTurn();
-
     //generate the passing child
     if(actionToTry == state.getSize()) {
       //Console.OUT.println("generating the passing move.");
@@ -227,7 +206,7 @@ public class MCTNode {
 
     while(actionToTry < state.getSize()) {
       //Console.OUT.println("looping inside genchild");
-      var possibleState:BoardState = state.doMove(actionToTry, stone);
+      var possibleState:BoardState = state.doMove(actionToTry, turn);
 
       // if valid move AND not seen before
       if(possibleState != null && !positionsSeen.contains(possibleState)) {
@@ -243,7 +222,7 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode, val player:Boolean):Int {
+  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Int {
     //Console.OUT.println("playing a default policy.");
     var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
     randomGameMoves.add(currNode.state);
@@ -259,12 +238,14 @@ public class MCTNode {
       }
     }
     //Console.OUT.println("about to return the leaf value.");
-    return leafValue(currNode, player);
+    return leafValue(currNode);
   }
 
-  public def leafValue(var currNode:MCTNode, val player:Boolean):Int {
+
+  public def leafValue(var currNode:MCTNode):Int {
+
     // 'this' is the root of the current game subtree, so we know whose turn it is.
-    if(!player) { // player is white
+    if(turn == Stone.WHITE) { // stone is white
       if(currNode.state.currentLeader() == Stone.WHITE) {
         return 1;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
@@ -272,7 +253,7 @@ public class MCTNode {
       } else {
         return 0;
       }
-    } else { // player is black
+    } else { // stone is black
       if(currNode.state.currentLeader() == Stone.WHITE) {
         return -1;
       } else if(currNode.state.currentLeader() == Stone.BLACK) {
@@ -284,14 +265,10 @@ public class MCTNode {
   }
 
   public def generateRandomChildState(var randomGameMoves:HashSet[BoardState]):MCTNode {
-    
-    var stone:Stone = stoneFromTurn();
-
-    // TODO: HERE'S THE PROBLEM: WE'RE SPINNING AT THIS POINT.
     // 1: get an arraylist of the empty squares, generate one of THOSE randomly, remove it if it's an invalid move, and 
     var emptyIdxs:ArrayList[Int] = state.listOfEmptyIdxs();
     var randIdx:Int = rand.nextInt(emptyIdxs.size());
-    var childState:BoardState = state.doMove(emptyIdxs.get(randIdx), stone);
+    var childState:BoardState = state.doMove(emptyIdxs.get(randIdx), turn);
     emptyIdxs.removeAt(randIdx);
 
     while(!emptyIdxs.isEmpty()) {
@@ -303,7 +280,7 @@ public class MCTNode {
       else {
         //Console.OUT.println("about to generate a new random child");
         randIdx = rand.nextInt(emptyIdxs.size());
-        childState = state.doMove(emptyIdxs.get(randIdx), stone);
+        childState = state.doMove(emptyIdxs.get(randIdx), turn);
         emptyIdxs.removeAt(randIdx);
       }
     }
@@ -322,6 +299,41 @@ public class MCTNode {
     }
   }
 
+
+
+  /* this function allows human moves to be added to the computer game
+   * tree, so we don't have to recompute children in the computer game
+   * tree.
+   *
+   * If the proper node is found in the opponent's game tree, it is
+   * returned to be set as currNode. (to preserve computer's game tree structure)
+   *
+   * Otherwise, the humanMove node that was passed in is returned.
+   */
+  public def addHumanMoveToOpponentGameTree(val humanMove:BoardState):MCTNode {
+    val existingNode:MCTNode = findMove(humanMove);
+    if(existingNode != null) {
+      return existingNode;
+    } else {
+      return new MCTNode(this, humanMove); // this constructor sets the parent.
+    }
+  }
+
+  // TODO: update children to be a hashset, so this is a constant-time op.
+  public def findMove(val stateToFind:BoardState) {
+    for(var i:Int = 0; i < children.size(); i++) {
+      if(children(i).equals(stateToFind)) {
+        Console.OUT.println("FOUND THE MOVE");
+        return children(i);
+      } 
+    }
+    Console.OUT.println("did not find move in opponent's game tree.");
+    return null;
+  }
+
+
+
+
   public def isLeaf():Boolean {
     // something is a leaf when it either has no valid moves, or both the preceding boards were 'passes'.
     
@@ -334,32 +346,14 @@ public class MCTNode {
   }
 
   public def validMoveLeft():Boolean {
-    var stone:Stone = stoneFromTurn();
     for(var i:Int = 0; i < state.getSize(); i++) {
-      if(state.doMove(i, stone) != null) {
+      if(state.doMove(i, turn) != null) {
         return Boolean.TRUE;
       }
     }
     return Boolean.FALSE;
   }
 
-  public def stoneFromTurn():Stone{
-    if(turn) {
-      return Stone.BLACK;
-    } else {
-      return Stone.WHITE;
-    }
-  }
-
-  // public def findOpponentMoveInChildren(val b:BoardState):MCTNode {
-  //   for(var i:Int = 0; i < children.size(); i++) {
-  //     if(state.equals(children(i))) {
-  //       return children(i);
-  //     }
-  //   }
-  //   Console.OUT.println("returning null.");
-  //   return null;
-  // }
 
   // done when two consecutive turns are passes.
   public def gameIsOver():Boolean {
@@ -376,11 +370,11 @@ public class MCTNode {
 
 
   public def getMyScore():Int {
-    return (turn ? state.getBlackScore() : state.getWhiteScore());
+    return (turn == Stone.BLACK ? state.getBlackScore() : state.getWhiteScore());
   }
 
   public def getOppScore():Int {
-    return (turn ? state.getWhiteScore() : state.getBlackScore());
+    return (turn == Stone.WHITE ? state.getWhiteScore() : state.getBlackScore());
   }
 
 

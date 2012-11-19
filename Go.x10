@@ -37,8 +37,7 @@ public class Go {
   public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[BoardState], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the gobot is thinking....");
-
-    nodeToAdd = currNode.UCTSearch(positionsSeen, (toMove != Stone.BLACK ? Boolean.FALSE : Boolean.TRUE));
+    nodeToAdd = currNode.UCTSearch(positionsSeen);
 
     Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
@@ -46,14 +45,14 @@ public class Go {
     
     currNode = nodeToAdd;
 
-    if(!currNode.getChildren().isEmpty()) {
-      Console.OUT.println("the computer node has children, and here is one:");
-      Console.OUT.println("**************************************************");
-      Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
-      Console.OUT.println("**************************************************");
-    } else {
-      Console.OUT.println("the computer node has no children.");
-    }
+    // if(!currNode.getChildren().isEmpty()) {
+    //   Console.OUT.println("the computer node has children, and here is one:");
+    //   Console.OUT.println("**************************************************");
+    //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
+    //   Console.OUT.println("**************************************************");
+    // } else {
+    //   Console.OUT.println("the computer node has no children.");
+    // }
     
     Console.OUT.println("finished gobot turn.");
     return currNode;

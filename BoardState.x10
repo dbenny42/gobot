@@ -388,7 +388,7 @@ public class BoardState {
     val col = p.second;
 
     // Make sure we're not trying to push an emtpy stone
-    if (stone == Stone.EMPTY)
+    if (Stone.canPlaceOn(stone))
       return null;
     
     // Make sure we ARE pushing ONTO an empty stone
@@ -409,8 +409,9 @@ public class BoardState {
     // Opponent chains adjacent to the new stone will need to
     // be notified of lost liberties
     var capturePoints:Int = 0;
-    for (oppChain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
-      capturePoints += newBoard.takeLibertyAndUpdate(oppChain, idx);
+    for (chain in newBoard.getChainsAt(getAdjacentIndices(row, col))) {
+      if (chain.getStone() == Stone.getOpponentOf(stone))
+	capturePoints += newBoard.takeLibertyAndUpdate(chain, idx);
     }
 
     newChain = newBoard.chains(idx);
@@ -453,6 +454,96 @@ public class BoardState {
     newBoard.addScore(-1*capturePoints, Stone.getOpponentOf(stone));
     return newBoard;
   }
+
+
+
+
+  public def printChains():String {
+    val sb = new StringBuilder();
+    val chainsPrinted = new HashSet[Chain]();
+
+    for (var idx:Int = 0; idx < this.chains.size; idx++) {
+      if (this.chains(idx) != null && !chainsPrinted.contains(this.chains(idx))) {
+	sb.add("CHAIN: ");
+	sb.add(this.chains(idx).toString());
+	sb.add("\n");
+	chainsPrinted.add(this.chains(idx));
+      }
+    }
+
+    return sb.result();
+  }
+
+  /**
+   * Returns the board drawn as a string.
+   *
+   * Returns:
+   *   A human-readable string representation of the board.
+   */
+  public def print():String {
+    val sb = new StringBuilder();
+    var idx:Int = 0;
+    var rowChar:Char = 'a';
+    var colNum:Int = 0;
+      
+
+    for (var col:Int = 0; col < this.height; col++) {
+
+      // Put the row label
+      sb.add(rowChar);
+      sb.add('\t');
+
+      // Add the row
+      for (var row:Int = 0; row < this.width; row++) {
+	sb.add(this.stones(idx).token());
+
+	if (row+1 < width) {
+	  sb.add("--");
+	}
+	idx++;
+      }
+
+      sb.add("\n\t");
+
+      // Add the connecting verticals
+      if (col+1 < height) {
+	for (var row:Int = 0; row < this.width; row++) {
+	  sb.add('|');
+
+	  if (row+1 < width) {
+	    sb.add("  ");
+	  }
+	}
+      } 
+
+      sb.add('\n');
+      rowChar = rowChar + 1;
+    }
+
+    /* Add the column numbers */
+    sb.add("\n\t");
+    for (var row:Int = 0; row < this.width; row++) {
+      sb.add(row);
+      
+      if (row+1 < width) {
+	sb.add("  ");
+      }
+    }
+
+    sb.add("\n");
+    sb.add("Score:\n");
+    sb.add("-----------\n");
+    sb.add("Black: " + this.blackScore + "\n");
+    sb.add("White: " + this.whiteScore + "\n");
+
+    sb.add("\n\nChains at:\n");
+    sb.add(this.printChains());
+    
+    return sb.result();
+  }
+
+
+
 
   /**
    * Attempts to do a territory fill at (row, col). If a boundary stone is found
@@ -612,7 +703,7 @@ public class BoardState {
 
     /* Inform this chain's neighbors of its death */
     for (adjChain in getChainsAt(toDie.getAdjacencies())) {
-      addLibertiesAndUpdate(adjChain, toDie.getMembers());
+      this.addLibertiesAndUpdate(adjChain, toDie.getMembers());
     }
 
     return toDie.getSize();
@@ -699,71 +790,5 @@ public class BoardState {
     for (member in newChain.getMembers()) {
       this.chains(member) = newChain;
     }    
-  }
-
-
-  /**
-   * Returns the board drawn as a string.
-   *
-   * Returns:
-   *   A human-readable string representation of the board.
-   */
-  public def print():String {
-    val sb = new StringBuilder();
-    var idx:Int = 0;
-    var rowChar:Char = 'a';
-    var colNum:Int = 0;
-      
-
-    for (var col:Int = 0; col < this.height; col++) {
-
-      // Put the row label
-      sb.add(rowChar);
-      sb.add('\t');
-
-      // Add the row
-      for (var row:Int = 0; row < this.width; row++) {
-	sb.add(this.stones(idx).token());
-
-	if (row+1 < width) {
-	  sb.add("--");
-	}
-	idx++;
-      }
-
-      sb.add("\n\t");
-
-      // Add the connecting verticals
-      if (col+1 < height) {
-	for (var row:Int = 0; row < this.width; row++) {
-	  sb.add('|');
-
-	  if (row+1 < width) {
-	    sb.add("  ");
-	  }
-	}
-      } 
-
-      sb.add('\n');
-      rowChar = rowChar + 1;
-    }
-
-    /* Add the column numbers */
-    sb.add("\n\t");
-    for (var row:Int = 0; row < this.width; row++) {
-      sb.add(row);
-      
-      if (row+1 < width) {
-	sb.add("  ");
-      }
-    }
-
-    sb.add("\n");
-    sb.add("Score:\n");
-    sb.add("-----------\n");
-    sb.add("Black: " + this.blackScore + "\n");
-    sb.add("White: " + this.whiteScore + "\n");
-    
-    return sb.result();
   }
 }
