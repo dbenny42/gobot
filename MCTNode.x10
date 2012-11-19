@@ -5,6 +5,9 @@ import x10.util.Random;
 import x10.util.Timer;
 import x10.lang.Boolean;
 import x10.util.HashSet;
+import x10.util.concurrent.AtomicDouble;
+import x10.util.concurrent.AtomicInteger;
+import x10.util.concurrent.Lock;
 
 public class MCTNode {
 
@@ -15,21 +18,21 @@ public class MCTNode {
   static public val TIMEBOUND:Long = 10000; // 10s (10000ms)\
 
 
-
-
   // fields
   private var parent:MCTNode;
   private val turn:Stone; // Boolean.TRUE is black, FALSE is white ("little white lies")
   private var children:ArrayList[MCTNode];
-  private var timesVisited:Int;
-  private var aggReward:Double;
+  private val timesVisited:AtomicInteger;
+  private val aggReward:AtomicDouble;
   private var state:BoardState;
   private var pass:Boolean;
   private var realMove:MCTNode;
   private var listOfEmptyIdxs:ArrayList[Int];
   private var expanded:Boolean;
+  private val emptyIdxLock:Lock;
 
-  private var numAsyncsSpawned:Int = 0;
+
+  private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
   private val MAXASYNCS:Int = 24;
 
 
@@ -40,11 +43,12 @@ public class MCTNode {
   // don't repeat ourselves.
   public def this(var parent:MCTNode, var state:BoardState) {
     this.parent = parent;
-    this.timesVisited = 0; // only gets incremented during backprop.
-    this.aggReward = 0.0; // gets set during backprop.
+    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
+    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.listOfEmptyIdxs = state.listOfEmptyIdxs();
+    this.emptyIdxLock = new Lock();
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.pass = Boolean.FALSE;
     this.expanded = Boolean.FALSE;
@@ -52,25 +56,27 @@ public class MCTNode {
 
   public def this(var parent:MCTNode, var state:BoardState, var pass:Boolean) {
     this.parent = parent;
-    this.timesVisited = 0; //only gets incremented during backprop.
-    this.aggReward = 0.0; // gets set during backprop.
+    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
+    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.listOfEmptyIdxs = state.listOfEmptyIdxs();
+    this.emptyIdxLock = new Lock();
     this.expanded = Boolean.FALSE;
    }
 
   public def this(var state:BoardState) {
     this.parent = null;
-    this.timesVisited = 0; // only gets incremented during backprop.
-    this.aggReward = 0.0; // gets set during backprop.
+    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
+    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = Boolean.FALSE;
     this.children = new ArrayList[MCTNode](CHILDINITSIZE);
     this.listOfEmptyIdxs = state.listOfEmptyIdxs();
+    this.emptyIdxLock = new Lock();
     this.expanded = Boolean.FALSE;
   }
 
@@ -80,7 +86,7 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    var ucb:Double = (aggReward / timesVisited) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited as Double))) / timesVisited));
+    var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
 
     if(parent != null) {
@@ -124,35 +130,44 @@ public class MCTNode {
     return bestValArg;
   }
 
-  public def withinResourceBound(startTime:Long):Boolean{
-    val diff:Long = Timer.milliTime() - startTime;
-    return TIMEBOUND > diff;
+  public def withinResourceBound(numDefaultPolicies:AtomicInteger, bound:Int):Boolean{
+    return numDefaultPolicies.get() < bound;
   }
 
-  public def UCTSearch(var positionsSeen:HashSet[BoardState]):MCTNode{
+  public def UCTSearch(var positionsSeen:HashSet[Int]):MCTNode{
+
+    val NUMDEFAULTPOLICIESBOUND:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
+    //val NUMDEFAULTPOLICIESBOUND:Int = state.getWidth() * state.getWidth() * 3;
+    val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
+    var defaultPolicyDepth:Int = (state.getWidth() * state.getWidth() / state.listOfEmptyIdxs().size()) * 40;
+
+
 
     //Console.OUT.println("current pass is: " + pass);
     val startTime:Long = Timer.milliTime();
-
+    numAsyncsSpawned.set(0);
+    
     finish {
-      while(withinResourceBound(startTime)) { // TODO: implement the resource bound.
-        if(numAsyncsSpawned < MAXASYNCS) {
-          atomic numAsyncsSpawned++;
+      while(withinResourceBound(numDefaultPolicies, NUMDEFAULTPOLICIESBOUND)) { // TODO: implement the resource bound.
+        //Console.OUT.println("the number of default policies is: " + numDefaultPolicies);
+        if(numAsyncsSpawned.get() < MAXASYNCS) {
+          numAsyncsSpawned.incrementAndGet();
           async {
             var child:MCTNode = treePolicy(positionsSeen);
 
-            var outcome:Double = defaultPolicy(positionsSeen, child); // uses the nodes' best descendant, generates an action.
+            var outcome:Double = defaultPolicy(positionsSeen, child, defaultPolicyDepth); // uses the nodes' best descendant, generates an action.
+            numDefaultPolicies.incrementAndGet();
             backProp(child, outcome);
-            atomic numAsyncsSpawned--;
+            numAsyncsSpawned.decrementAndGet();
           } // finish async
         } else {
           var child:MCTNode = treePolicy(positionsSeen);
-          var outcome:Double = defaultPolicy(positionsSeen, child); //uses the nodes' best descendant, generates an action.
+          var outcome:Double = defaultPolicy(positionsSeen, child, defaultPolicyDepth); //uses the nodes' best descendant, generates an action.
+          numDefaultPolicies.incrementAndGet();
           backProp(child, outcome);
         }
       } // end while.
     } // end finish
-
 
     var bestChild:MCTNode = getBestChild(0);
 
@@ -172,10 +187,11 @@ public class MCTNode {
   }
 
 
-  public def treePolicy(var positionsSeen:HashSet[BoardState]):MCTNode{
+  public def treePolicy(var positionsSeen:HashSet[Int]):MCTNode{
 
     //Console.OUT.println("looping in tree policy.");
-    var child:MCTNode = generateChild(positionsSeen);
+    var child:MCTNode;
+    child = generateChild(positionsSeen);
     //Console.OUT.println("successfully generated a child.");
 
     if(child == null) { // indicates a leaf OR all kids generated; couldn't generate a child.
@@ -197,7 +213,7 @@ public class MCTNode {
 
 
 
-  public def generateChild(var positionsSeen:HashSet[BoardState]):MCTNode {
+  public def generateChild(var positionsSeen:HashSet[Int]):MCTNode {
     //Console.OUT.println("inside generate child.");
     //generate the passing child
     if(listOfEmptyIdxs.isEmpty() && !expanded) {
@@ -208,13 +224,17 @@ public class MCTNode {
 
     while(!listOfEmptyIdxs.isEmpty()) {
       //Console.OUT.println("looping inside genchild");
-      var randIdx:Int = rand.nextInt(listOfEmptyIdxs.size());
+      var randIdx:Int;
+
+      while(!emptyIdxLock.tryLock());
+      randIdx = rand.nextInt(listOfEmptyIdxs.size());
       var possibleState:BoardState = state.doMove(listOfEmptyIdxs(randIdx), turn);
       listOfEmptyIdxs.removeAt(randIdx);
+      emptyIdxLock.unlock();
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
-      if(possibleState != null && !positionsSeen.contains(possibleState)) {
+      if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
@@ -224,20 +244,25 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(var positionsSeen:HashSet[BoardState], var currNode:MCTNode):Double {
+  public def defaultPolicy(var positionsSeen:HashSet[Int], var currNode:MCTNode, var maxDepth:Int):Double {
+
+    var currDepth:Int = 0;
+
     //Console.OUT.println("playing a default policy.");
-    var randomGameMoves:HashSet[BoardState] = positionsSeen.clone();
-    randomGameMoves.add(currNode.state);
+    var randomGameMoves:HashSet[Int] = positionsSeen.clone();
+    randomGameMoves.add(currNode.state.hashCode());
 
     var tempNode:MCTNode = currNode;
-    while(tempNode != null && !tempNode.isLeaf()){
+    while(tempNode != null && !tempNode.isLeaf() && currDepth < maxDepth) {
       //Console.OUT.println("looping in default policy.");
       tempNode = currNode.generateRandomChildState(randomGameMoves);
       if(tempNode != null) {
         //Console.OUT.println("updating currnode in default policy.");
         currNode = tempNode;
-        randomGameMoves.add(currNode.state);
+        randomGameMoves.add(currNode.state.hashCode());
       }
+
+      currDepth++;
     }
     //Console.OUT.println("about to return the leaf value.");
     return leafValue(currNode);
@@ -266,7 +291,8 @@ public class MCTNode {
     }
   }
 
-  public def generateRandomChildState(var randomGameMoves:HashSet[BoardState]):MCTNode {
+
+  public def generateRandomChildState(var randomGameMoves:HashSet[Int]):MCTNode {
     // 1: get an arraylist of the empty squares, generate one of THOSE randomly, remove it if it's an invalid move, and 
     var emptyIdxs:ArrayList[Int] = state.listOfEmptyIdxs();
     var randIdx:Int = rand.nextInt(emptyIdxs.size());
@@ -275,7 +301,7 @@ public class MCTNode {
 
     while(!emptyIdxs.isEmpty()) {
       //Console.OUT.println("working through generate random child state.");
-      if((childState != null) && !randomGameMoves.contains(childState)) {
+      if((childState != null) && !randomGameMoves.contains(childState.hashCode())) {
         //Console.OUT.println("about to return a new child node");
         return new MCTNode(this, childState);
       }
@@ -295,8 +321,8 @@ public class MCTNode {
     //Console.OUT.println("inside backprop.");
     while(currNode != null) {
       //Console.OUT.println("backprop while loop.");
-      atomic currNode.timesVisited++;
-      atomic currNode.aggReward += reward;
+      currNode.timesVisited.incrementAndGet();
+      currNode.aggReward.addAndGet(reward);
       currNode = currNode.parent;
     }
   }

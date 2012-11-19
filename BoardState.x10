@@ -538,8 +538,8 @@ public class BoardState {
     sb.add("Black: " + this.blackScore + "\n");
     sb.add("White: " + this.whiteScore + "\n");
 
-    sb.add("\n\nChains at:\n");
-    sb.add(this.printChains());
+    //sb.add("\n\nChains at:\n");
+    //sb.add(this.printChains());
     
     return sb.result();
   }
