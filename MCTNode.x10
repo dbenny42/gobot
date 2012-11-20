@@ -34,11 +34,68 @@ public class MCTNode {
   private val x10_nthreads = 
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
 
-  private val MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
-  private val MAX_PLACES:Int = Place.MAX_PLACES;
-  private val BATCH_SIZE:Int = 8;
-  private val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
-  private val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
+  private static var MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
+  private static var MAX_PLACES:Int = Place.MAX_PLACES;
+  private static var BATCH_SIZE:Int = MAX_PLACES;
+  private static var NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
+  private static var MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
+
+
+  public static def setMaxAsyncs(maxAsyncs:Int) {
+    if (maxAsyncs <= 0)
+      throw new RuntimeException("MAX_ASYNCS must be a positive integer");
+    
+    if ((maxAsyncs / (MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES) <= 0))
+      throw new RuntimeException("MAX_ASYNCS times MAX_PLACES cannot be less " +
+				 "than BATCH_SIZE. MAX_PLACES is set to " +
+				 MCTNode.MAX_PLACES + " " +
+				 "and BATCH_SIZE is set to " + 
+				 MCTNode.BATCH_SIZE);
+
+    MCTNode.MAX_ASYNCS = maxAsyncs;
+    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
+  }
+
+  public static def setMaxPlaces(maxPlaces:Int) {
+    if (maxPlaces <= 0)
+      throw new RuntimeException("MAX_PLACES must be a positive integer");
+    
+    if ((batchSize / MCTNode.MAX_PLACES) <= 0)
+      throw new RuntimeException("MAX_PLACES cannot be larger than " +
+				 "BATCH_SIZE. BATCH_SIZE is set to " +
+				 MCTNode.BATCH_SIZE);
+
+    if ((MCTNode.MAX_ASYNCS / (batchSize / MCTNode.MAX_PLACES) <= 0))
+      throw new RuntimeException("MAX_PLACES times MAX_ASYNCS cannot be less " +
+				 "than BATCH_SIZE. MAX_ASYNCS is set to " +
+				 MCTNode.MAX_ASYNCS + " " +
+				 "and BATCH_SIZE is set to " + 
+				 MCTNode.BATCH_SIZE);
+
+    MCTNode.MAX_PLACES:Int = maxPlaces;
+    MCTNode.NODES_PER_PLACE = MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES;
+    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
+  }
+
+  public static def setBatchSize(batchSize:Int) {
+    if ((batchSize / MCTNode.MAX_PLACES) <= 0)
+      throw new RuntimeException("BATCH_SIZE must be at least as large as " +
+				 "MAX_PLACES. MAX_PLACES is set to " +
+				 MCTNode.MAX_PLACES);
+
+    if ((MCTNode.MAX_ASYNCS / (batchSize / MCTNode.MAX_PLACES) <= 0))
+      throw new RuntimeException("BATCH_SIZE cannot be larger than " +
+				 "MAX_PLACES times MAX_ASYNCS. " +
+				 "MAX_PLACES is set to " +
+				 MCTNode.MAX_PLACES + " " +
+				 "and MAX_ASYNCS is set to " + 
+				 MCTNode.MAX_ASYNCS);
+
+    MCTNode.BATCH_SIZE = batchSize;
+    MCTNode.NODES_PER_PLACE = MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES;
+    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
+  }
+	 
 
   // constructors
 
@@ -72,6 +129,7 @@ public class MCTNode {
     if (timesVisited.get() == 0) {
       return Double.POSITIVE_INFINITY;
     }
+
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
 
@@ -190,7 +248,10 @@ public class MCTNode {
 
     while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
 
+      Console.OUT.println("Starting TP/DP/BP cycle");
+
       // Select BATCH_SIZE new MCTNodes to simulate using TP
+      Console.OUT.println("TP");
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
       for(childIdx in 0..(BATCH_SIZE - 1)) {
 	val child:MCTNode = treePolicy(positionsSeen);
@@ -200,7 +261,7 @@ public class MCTNode {
 	  dpNodes.add(child);
       }
 
-      val dpNodeRegion:Region = Region.make(0, dpNodes.size() - 1);
+      val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
       val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
       val da:DistArray[Double] =
         DistArray.make[Double](Dist.makeBlock(dpNodeRegion, 0));
