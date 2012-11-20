@@ -251,14 +251,17 @@ public class MCTNode {
 
       Console.OUT.println("Here's the distarray: ");
       for(dpNodeIdx in dpNodeRegion) {
-        at(da.dist(dpNodeIdx(0))) {
+        //at(da.dist(dpNodeIdx(0))) {
           Console.OUT.print(da(dpNodeIdx(0)) + ", ");
         }
       }
       Console.OUT.println();
 
-      // TODO:
+
+
       numDefaultPolicies.incrementAndGet();
+
+
 
       finish for (dpNodeIdx in dpNodeRegion) {
 	val dpNode = dpNodes.get(dpNodeIdx(0));
@@ -366,35 +369,35 @@ public class MCTNode {
     return null;
   }
 
-  public def defaultPolicy(val positionsSeen:HashSet[Int],
-			   val startState:BoardState,
-			   val maxDepth:Int):Double {
+  // public def defaultPolicy(val positionsSeen:HashSet[Int],
+  //       		   val startState:BoardState,
+  //       		   val maxDepth:Int):Double {
 
-    val dp_value_total = new AtomicDouble(0.0);
+  //   val dp_value_total = new AtomicDouble(0.0);
 
-    finish {
-      for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
-        async {
-          var currNode:MCTNode = new MCTNode(startState);
-          var tempNode:MCTNode;
-          var currDepth:Int = 0;
-          val randomGameMoves:HashSet[Int] = positionsSeen.clone();
-          randomGameMoves.add(currNode.state.hashCode());
-          while(currNode != null && !currNode.isLeaf() && currDepth < maxDepth) {
-            // TODO: does this really need to be generateRandomChildState()?
-            tempNode = currNode.generateChildNoModify(randomGameMoves);
-            if(tempNode != null) {
-              currNode = tempNode;
-              randomGameMoves.add(currNode.state.hashCode());
-            }
-            currDepth++;
-          }
-          dp_value_total.getAndAdd(leafValue(currNode));
-        }
-      }
-    }
-    return dp_value_total.get();
-  }
+  //   finish {
+  //     for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
+  //       async {
+  //         var currNode:MCTNode = new MCTNode(startState);
+  //         var tempNode:MCTNode;
+  //         var currDepth:Int = 0;
+  //         val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+  //         randomGameMoves.add(currNode.state.hashCode());
+  //         while(currNode != null && !currNode.isLeaf() && currDepth < maxDepth) {
+  //           // TODO: does this really need to be generateRandomChildState()?
+  //           tempNode = currNode.generateChildNoModify(randomGameMoves);
+  //           if(tempNode != null) {
+  //             currNode = tempNode;
+  //             randomGameMoves.add(currNode.state.hashCode());
+  //           }
+  //           currDepth++;
+  //         }
+  //         dp_value_total.getAndAdd(leafValue(currNode));
+  //       }
+  //     }
+  //   }
+  //   return dp_value_total.get();
+  // }
 
 
   public def leafValue(var currNode:MCTNode):Double {
