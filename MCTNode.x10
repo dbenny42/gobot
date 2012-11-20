@@ -74,8 +74,12 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (timesVisited.get() == 0)
+    //Console.OUT.println("[computeUcb] aggReward: " + aggReward.get() + ", timesVisited: " + timesVisited.get());
+
+    if (timesVisited.get() == 0) {
+      //.OUT.println("not visited yet.");
       return Double.POSITIVE_INFINITY;
+    }
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
 
@@ -105,8 +109,9 @@ public class MCTNode {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
 
-      //Console.OUT.println("children(" + i + ") ucb: " + currVal);
+      //.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
+        //.OUT.println("found new best child.");
         bestVal = currVal;
         bestValArg = currChild;
       }
@@ -122,12 +127,13 @@ public class MCTNode {
 
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode{
 
+    //.OUT.println("BACON: the aggReward is " + aggReward);
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
 
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
     val defaultPolicyDepth:Int = (state.getSize() / 
-				  this.unexploredMoves.size()) * 40;
+				  this.unexploredMoves.size()) * 30;
 
 
     val startTime:Long = Timer.milliTime();
@@ -197,7 +203,8 @@ public class MCTNode {
 
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
-      for(childIdx in 0..BATCH_SIZE) {
+      for(childIdx in 0..(BATCH_SIZE - 1)) {
+        //.OUT.println("generating a child via tree policy.");
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -205,21 +212,27 @@ public class MCTNode {
 	  dpNodes.add(child);
       }
 
-      val dpNodeRegion:Region = Region.make(0, dpNodes.size());
+      val dpNodeRegion:Region = Region.make(0, dpNodes.size() - 1);
       val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
 
-      
+      //.OUT.println("beginning defaultPolicy section.");
+      //.OUT.println("the max number of places is " + MAX_PLACES);
       finish for (dpNodeIdx in dpNodeRegion) {
+        //.OUT.println("single loop of default policy section. dpNodeIdx: " + dpNodeIdx);
+        //.OUT.println("d(dpNodeIdx(0): " + d(dpNodeIdx(0)));
 	val dpNode = dpNodes.get(dpNodeIdx(0));
-	at (d(dpNodeIdx)) {
+//	at (d(dpNodeIdx(0))) {
+//        at (Place(0)) {
+//        at (Place.FIRST_PLACE) {
 	  async {
 	    val outcome:Double = defaultPolicy(positionsSeen, dpNode,
 					       defaultPolicyDepth);
 	    numDefaultPolicies.incrementAndGet();
 	    backProp(dpNode, outcome);
 	  }
-	}
+//	}
       }
+      //.OUT.println("finished the 'finish' section.");
     }
 
     var bestChild:MCTNode = getBestChild(0);
@@ -228,13 +241,16 @@ public class MCTNode {
 
 
   public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
-
+    //.OUT.println("EMU aggReward: " + aggReward);
     var child:MCTNode;
+    //.OUT.println("[treePolicy] generating a child.");
     child = generateChild(positionsSeen);
+    //.OUT.println("[treePolicy] finished generating child.");
 
     // no children (leaf or all children)
     if(child == null) { 
       if(children.isEmpty()){
+        //.OUT.println("[treePolicy] returning this");
         return this;
       } else {
         // recursive descent through the tree, best choice at each step:
@@ -244,10 +260,16 @@ public class MCTNode {
 	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
 	newPositionsSeen.add(this.state.hashCode());
 
+        //.OUT.println("[treePolicy] returning recursive descent");
+        if(bc == null) {
+          //.OUT.println("bc is null.");
+        }
         return bc.treePolicy(newPositionsSeen);
       }
     } else {
       children.add(child);
+      //.OUT.println("[treePolicy] returning child");
+      //.OUT.println("LIZARD aggReward: " + aggReward);
       return child;
     }
   }
@@ -337,11 +359,11 @@ public class MCTNode {
 	    }
 	    currDepth++;
 	  }
-	  dp_value_total.getAndAdd(leafValue(currNode));				 
+	  dp_value_total.getAndAdd(leafValue(currNode));
 	}
       }
     }
-    return dp_value_total.get()/MAX_DP_PATHS;
+    return dp_value_total.get();
   }
 
 
@@ -382,7 +404,8 @@ public class MCTNode {
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
-      currNode.timesVisited.incrementAndGet();
+      currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
+                                                     // MAX_DP_PATHS parallel default policies
       currNode.aggReward.addAndGet(reward);
       currNode = currNode.parent;
     }
@@ -440,6 +463,7 @@ public class MCTNode {
 
   public def gameIsOver():Boolean {
     if(parent != null) {
+      Console.OUT.println("[gameIsOver] pass: " + pass + "parent.pass: " + parent.pass);
       return pass && parent.pass;
     } else {
       return false;
