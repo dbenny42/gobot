@@ -1,0 +1,68 @@
+David Benedetto & Stephen Pratt
+Parallel Programming
+
+Gobot - The Go-Playing Parallel Bot
+
+
+
+INVOCATION:
+
+make play # will build and start a 7x7 version of the human VS. AI game.
+          # this is more to see the gameplay than to actually test the
+          # performance of our project.
+
+# to play again, with a different board size:
+./Go <height> <width> <0 to 2 human players>
+
+
+
+
+NOTES ON USAGE
+
+To make a move against the AI, type the row, then column of the piece that
+you wish to play, such as "a2", "b4", or "c5", as they are labeled on the
+board printout.
+
+If you attempt a compilation without using the Makefile, please use the
+C++ compiler, as we had some currently-unexplained compiler errors occur
+at the level of Java code, but not at X10 code.
+
+
+
+MILESTONE 3 REPORT
+
+WHAT'S IMPLEMENTED
+At this point in time, a functional parallel version of the AI has been
+implemented, built on top of the serial version implemented for Milestone
+2, along with 
+
+
+OUR PARALLELISM
+
+
+
+
+TESTING / SCALING
+
+
+
+
+REMAINING GOALS
+
+Our chief goal for the Milestone 4 is:
+
+
+
+
+In working toward that goal, we have the following steps in mind:
+
+-making the MCTNode a struct, adjusting its internal and external
+ operations accordingly.  A struct should give us better performance than
+ a class.
+
+-eliminating the dynamically checked calls, which, according to a lecture
+ earlier in the course, would yield a performance gain.
+
+
+We are unsure where else we can add parallelism to the project, as there
+are relatively few places to see gains from parallelism in tree searching.

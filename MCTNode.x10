@@ -31,71 +31,15 @@ public class MCTNode {
 
 
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
-  private val x10_nthreads = 
+  private static val x10_nthreads = 
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
 
-  private static var MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
-  private static var MAX_PLACES:Int = Place.MAX_PLACES;
-  private static var BATCH_SIZE:Int = MAX_PLACES;
-  private static var NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
-  private static var MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
+  private static val MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
+  private static val MAX_PLACES:Int = Place.MAX_PLACES;
+  private static val BATCH_SIZE:Int = MAX_PLACES;
+  private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
+  private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
-
-  public static def setMaxAsyncs(maxAsyncs:Int) {
-    if (maxAsyncs <= 0)
-      throw new RuntimeException("MAX_ASYNCS must be a positive integer");
-    
-    if ((maxAsyncs / (MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES) <= 0))
-      throw new RuntimeException("MAX_ASYNCS times MAX_PLACES cannot be less " +
-				 "than BATCH_SIZE. MAX_PLACES is set to " +
-				 MCTNode.MAX_PLACES + " " +
-				 "and BATCH_SIZE is set to " + 
-				 MCTNode.BATCH_SIZE);
-
-    MCTNode.MAX_ASYNCS = maxAsyncs;
-    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
-  }
-
-  public static def setMaxPlaces(maxPlaces:Int) {
-    if (maxPlaces <= 0)
-      throw new RuntimeException("MAX_PLACES must be a positive integer");
-    
-    if ((batchSize / MCTNode.MAX_PLACES) <= 0)
-      throw new RuntimeException("MAX_PLACES cannot be larger than " +
-				 "BATCH_SIZE. BATCH_SIZE is set to " +
-				 MCTNode.BATCH_SIZE);
-
-    if ((MCTNode.MAX_ASYNCS / (batchSize / MCTNode.MAX_PLACES) <= 0))
-      throw new RuntimeException("MAX_PLACES times MAX_ASYNCS cannot be less " +
-				 "than BATCH_SIZE. MAX_ASYNCS is set to " +
-				 MCTNode.MAX_ASYNCS + " " +
-				 "and BATCH_SIZE is set to " + 
-				 MCTNode.BATCH_SIZE);
-
-    MCTNode.MAX_PLACES:Int = maxPlaces;
-    MCTNode.NODES_PER_PLACE = MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES;
-    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
-  }
-
-  public static def setBatchSize(batchSize:Int) {
-    if ((batchSize / MCTNode.MAX_PLACES) <= 0)
-      throw new RuntimeException("BATCH_SIZE must be at least as large as " +
-				 "MAX_PLACES. MAX_PLACES is set to " +
-				 MCTNode.MAX_PLACES);
-
-    if ((MCTNode.MAX_ASYNCS / (batchSize / MCTNode.MAX_PLACES) <= 0))
-      throw new RuntimeException("BATCH_SIZE cannot be larger than " +
-				 "MAX_PLACES times MAX_ASYNCS. " +
-				 "MAX_PLACES is set to " +
-				 MCTNode.MAX_PLACES + " " +
-				 "and MAX_ASYNCS is set to " + 
-				 MCTNode.MAX_ASYNCS);
-
-    MCTNode.BATCH_SIZE = batchSize;
-    MCTNode.NODES_PER_PLACE = MCTNode.BATCH_SIZE / MCTNode.MAX_PLACES;
-    MCTNode.MAX_DP_PATHS = MCTNode.MAX_ASYNCS / MCTNode.NODES_PER_PLACE;
-  }
-	 
 
   // constructors
 
@@ -186,72 +130,10 @@ public class MCTNode {
     val startTime:Long = Timer.milliTime();
     numAsyncsSpawned.set(0);
 
-    /*
-    val dp_result_region:Region = Region.make(0, MAX_DEFAULT_POLICIES);
-    val dp_results:DistArray[MCTNode] = 
-      DistArray.make[MCTNode](Dist.makeBlock(dp_result_region, 0));
-    val dp_nodes:ArrayList[MCTNode] = new ArrayList[MCTNode](MAX_DEFAULT_POLICIES);
-    for(childIdx in dp_result_region) {
-      var child:MCTNode = treePolicy(positionsSeen);
-      if (child == this)
-	break;
-      else
-	dp_nodes.add(child);
-    }
-
-    finish {
-      for(dp_node_idx in 0..dp_nodes.size()) {
-	val start:MCTNode = dp_nodes.get(dp_node_idx);
-	at (dp_results.dist(dp_node_idx)) {
-	  async {
-	    val outcome:Double = defaultPolicy(positionsSeen, 
-					       start, defaultPolicyDepth);
-	    at (Place.FIRST_PLACE) {
-	      backProp(start, outcome);
-	    }
-	    dp_results(dp_node_idx) = start;
-	  }
-	}
-      }
-    }*/
-
-    /*finish {
-      while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
-
-        // Console.OUT.println("the number of default policies is: " + 
-	// 		    numDefaultPolicies);
-
-        if(numAsyncsSpawned.get() < MAX_ASYNCS) {
-          numAsyncsSpawned.incrementAndGet();
-          async {
-            var child:MCTNode = treePolicy(positionsSeen);
-	    Console.OUT.println("treePolicy output - null = " + (child == null));
-
-	    // uses the nodes' best descendant, generates an action.
-            var outcome:Double = defaultPolicy(positionsSeen, child,
-					       defaultPolicyDepth);
-            numDefaultPolicies.incrementAndGet();
-            backProp(child, outcome);
-            numAsyncsSpawned.decrementAndGet();
-          } 
-        } else {
-
-          var child:MCTNode = treePolicy(positionsSeen);
-	  Console.OUT.println("treePolicy output - null = " + (child == null));
-          var outcome:Double = defaultPolicy(positionsSeen, child,
-					     defaultPolicyDepth); 
-          numDefaultPolicies.incrementAndGet();
-          backProp(child, outcome);
-        }
-      } 
-    }*/
 
     while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
 
-      Console.OUT.println("Starting TP/DP/BP cycle");
-
       // Select BATCH_SIZE new MCTNodes to simulate using TP
-      Console.OUT.println("TP");
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
       for(childIdx in 0..(BATCH_SIZE - 1)) {
 	val child:MCTNode = treePolicy(positionsSeen);
@@ -289,7 +171,7 @@ public class MCTNode {
                   randomGameMoves.add(currNode.state.hashCode());
                   while(currNode != null && !currNode.isLeaf() &&
                         currDepth < defaultPolicyDepth) {
-                    // TODO: does this really need to be generateRandomChildState()?
+
                     tempNode = currNode.generateChildNoModify(randomGameMoves);
                     if(tempNode != null) {
                       currNode = tempNode;
@@ -310,13 +192,13 @@ public class MCTNode {
 	}
       }
 
-      Console.OUT.println("Here's the distarray: ");
-      for(dpNodeIdx in dpNodeRegion) {
-        //at(da.dist(dpNodeIdx(0))) {
-          Console.OUT.print(da(dpNodeIdx(0)) + ", ");
-        }
-      }
-      Console.OUT.println();
+      // Console.OUT.println("Here's the distarray: ");
+      // for(dpNodeIdx in dpNodeRegion) {
+      //   //at(da.dist(dpNodeIdx(0))) {
+      //     Console.OUT.print(da(dpNodeIdx(0)) + ", ");
+      //   //}
+      // }
+      // Console.OUT.println();
 
 
 
@@ -330,14 +212,14 @@ public class MCTNode {
           numAsyncsSpawned.incrementAndGet();
           async {
             val outcome:Double =
-              at(da.dist(dpNodeIdx(0)))
+              //at(da.dist(dpNodeIdx(0)))
                 da(dpNodeIdx(0));
             backProp(dpNode, outcome);
             numAsyncsSpawned.decrementAndGet();
           } 
         } else {
             val outcome:Double =
-              at(da.dist(dpNodeIdx(0)))
+              //at(da.dist(dpNodeIdx(0)))
                 da(dpNodeIdx(0));
             backProp(dpNode, outcome);
         }
