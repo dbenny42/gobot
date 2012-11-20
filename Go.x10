@@ -34,6 +34,24 @@ public class Go {
     }
   }
 
+  public static def randomComputerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int]):MCTNode {
+    var nodeToAdd:MCTNode;
+    Console.OUT.println("the idiotBot is thinking....");
+    if(currNode.getBoardState().listOfEmptyIdxs().size() < currNode.getBoardState().getWidth()) {
+      nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
+    } else {
+      nodeToAdd = currNode.generateChildNoModify(positionsSeen);
+    }
+
+    currNode = currNode.addHumanMoveToOpponentGameTree(nodeToAdd.getBoardState());
+    if(nodeToAdd.getPass()) {
+      currNode.setPass(true);
+    }
+
+    Console.OUT.println("finished idiotBot turn.");
+    return currNode;
+  }
+
   public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the gobot is thinking....");
@@ -92,13 +110,10 @@ public class Go {
       moveIdx = parseMove(moveStr, HEIGHT, WIDTH);
       tempState = currNode.getBoardState().doMove(moveIdx, toMove);
 
-
-
       if(tempState == null) {
         Console.OUT.println("this move is invalid.  try again.");
         continue;
       }
-
 
       if(positionsSeen.contains(tempState.hashCode())) {
         Console.OUT.println("this move has been seen before.");
@@ -120,8 +135,41 @@ public class Go {
     //   Console.OUT.println("the human node has no children.");
     // }
 
-  
     return currNode;
+  }
+
+
+  /*
+   * A game between the good AI that uses UCTSearch, and the dumb AI that
+   * makes random moves.  This is in place to test the computational power
+   * of good AI in a batch environment.
+   *
+   * For now, the good AI will always play as black, the moron AI will
+   * always play as white.
+   */
+
+  public static def zeroPlayerGame(gameTree:MCTNode) {
+    var toMove:Stone = Stone.BLACK;
+    var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
+    var positionsSeen:HashSet[Int] = new HashSet[Int]();
+
+    while(!currNode.gameIsOver()) {
+      Console.OUT.println(currNode.getBoardState().print());
+      if(toMove == Stone.BLACK) {
+        currNode = computerTurn(currNode, positionsSeen, toMove);
+      } else {
+
+        // uses the bad AI to play. 
+        currNode = randomComputerTurn(currNode, positionsSeen);
+      }
+
+      positionsSeen.add(currNode.getBoardState().hashCode());
+
+      toMove = changeToMove(toMove);
+
+    } // end game
+
+    printWinner(currNode);
   }
 
 
@@ -187,7 +235,7 @@ public class Go {
     Console.OUT.println("Welcome to Go!");
 
     if(argv.size != 3) {
-      Console.OUT.println("usage: ./Go <height> <width> <1 or 2 humans>");
+      Console.OUT.println("usage: ./Go <height> <width> <0 to 2 humans>");
       return;
     }
 
@@ -212,6 +260,8 @@ public class Go {
     }
     else if(NUMHUMANS == 2) {
       twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
+    } else if(NUMHUMANS == 0) {
+      zeroPlayerGame(gameTree);
     } else {
       Console.OUT.println("invalid argument for number of humans.");
     }

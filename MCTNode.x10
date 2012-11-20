@@ -131,10 +131,10 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (timesVisited.get() == 0)
+    if (timesVisited.get() == 0) {
       return Double.POSITIVE_INFINITY;
+    }
 
-    Console.OUT.println("aggReward is " + aggReward.get());
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
 
@@ -164,7 +164,6 @@ public class MCTNode {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
 
-      //Console.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
         bestVal = currVal;
         bestValArg = currChild;
@@ -186,7 +185,7 @@ public class MCTNode {
 
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
     val defaultPolicyDepth:Int = (state.getSize() / 
-				  this.unexploredMoves.size()) * 40;
+				  this.unexploredMoves.size()) * 30;
 
 
     val startTime:Long = Timer.milliTime();
@@ -259,7 +258,7 @@ public class MCTNode {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       Console.OUT.println("TP");
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
-      for(childIdx in 0..(BATCH_SIZE-1)) {
+      for(childIdx in 0..(BATCH_SIZE - 1)) {
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -271,6 +270,7 @@ public class MCTNode {
       val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
 
       Console.OUT.println("DP/BP");
+
       finish for (dpNodeIdx in dpNodeRegion) {
 	val dpNode = dpNodes.get(dpNodeIdx(0));
 	//at (d(dpNodeIdx)) {
@@ -290,7 +290,6 @@ public class MCTNode {
 
 
   public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
-
     var child:MCTNode;
     child = generateChild(positionsSeen);
 
@@ -306,6 +305,10 @@ public class MCTNode {
 	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
 	newPositionsSeen.add(this.state.hashCode());
 
+        //.OUT.println("[treePolicy] returning recursive descent");
+        if(bc == null) {
+          //.OUT.println("bc is null.");
+        }
         return bc.treePolicy(newPositionsSeen);
       }
     } else {
@@ -316,12 +319,10 @@ public class MCTNode {
 
 
   public def generateChildNoModify(positionsSeen:HashSet[Int]):MCTNode {
-    //Console.OUT.println("inside generate child.");
     //generate the passing child
 
     val possibleMoves = unexploredMoves.clone();
     while(!possibleMoves.isEmpty()) {
-      //Console.OUT.println("looping inside genchild");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
@@ -344,17 +345,14 @@ public class MCTNode {
   }
 
   public def generateChild(positionsSeen:HashSet[Int]):MCTNode {
-    //Console.OUT.println("inside generate child.");
     //generate the passing child
 
     if(unexploredMoves.isEmpty() && !expanded) {
-      //Console.OUT.println("generating the passing move.");
       expanded = true;
       return new MCTNode(this, state, true);
     }
 
     while(!unexploredMoves.isEmpty()) {
-      //Console.OUT.println("looping inside genchild");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
@@ -399,7 +397,7 @@ public class MCTNode {
 	    }
 	    currDepth++;
 	  }
-	  dp_value_total.getAndAdd(leafValue(currNode));				 
+	  dp_value_total.getAndAdd(leafValue(currNode));
 	}
       }
     }
@@ -444,7 +442,8 @@ public class MCTNode {
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
-      currNode.timesVisited.incrementAndGet();
+      currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
+                                                     // MAX_DP_PATHS parallel default policies
       currNode.aggReward.addAndGet(reward);
       currNode = currNode.parent;
     }
@@ -502,6 +501,7 @@ public class MCTNode {
 
   public def gameIsOver():Boolean {
     if(parent != null) {
+      Console.OUT.println("[gameIsOver] pass: " + pass + "parent.pass: " + parent.pass);
       return pass && parent.pass;
     } else {
       return false;
