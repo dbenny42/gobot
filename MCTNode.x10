@@ -7,7 +7,6 @@ import x10.lang.Boolean;
 import x10.util.HashSet;
 import x10.util.concurrent.AtomicDouble;
 import x10.util.concurrent.AtomicInteger;
-import x10.util.concurrent.Lock;
 
 public class MCTNode {
 
@@ -21,14 +20,12 @@ public class MCTNode {
   private var parent:MCTNode;
   private val turn:Stone;
   private val children:ArrayList[MCTNode];
-  private val childrenLock:Lock;
   private val timesVisited:AtomicInteger;
   private val aggReward:AtomicDouble;
   private var state:BoardState;
   private var pass:Boolean;
   private var realMove:MCTNode;
   private val unexploredMoves:ArrayList[Int];
-  private val unexploredMovesLock:Lock;
   private var expanded:Boolean;
 
 
@@ -63,9 +60,7 @@ public class MCTNode {
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
     this.children = new ArrayList[MCTNode]();
-    this.childrenLock = new Lock();
     this.unexploredMoves = state.listOfEmptyIdxs();
-    this.unexploredMovesLock = new Lock();
     this.expanded = false;
    }
 
@@ -74,10 +69,7 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    //Console.OUT.println("[computeUcb] aggReward: " + aggReward.get() + ", timesVisited: " + timesVisited.get());
-
     if (timesVisited.get() == 0) {
-      //.OUT.println("not visited yet.");
       return Double.POSITIVE_INFINITY;
     }
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
@@ -109,9 +101,7 @@ public class MCTNode {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
 
-      //.OUT.println("children(" + i + ") ucb: " + currVal);
       if(currVal > bestVal) {
-        //.OUT.println("found new best child.");
         bestVal = currVal;
         bestValArg = currChild;
       }
@@ -127,7 +117,6 @@ public class MCTNode {
 
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode{
 
-    //.OUT.println("BACON: the aggReward is " + aggReward);
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
 
@@ -204,7 +193,6 @@ public class MCTNode {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
       for(childIdx in 0..(BATCH_SIZE - 1)) {
-        //.OUT.println("generating a child via tree policy.");
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -214,43 +202,97 @@ public class MCTNode {
 
       val dpNodeRegion:Region = Region.make(0, dpNodes.size() - 1);
       val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
+      val da:DistArray[Double] =
+        DistArray.make[Double](Dist.makeBlock(dpNodeRegion, 0));
 
-      //.OUT.println("beginning defaultPolicy section.");
-      //.OUT.println("the max number of places is " + MAX_PLACES);
       finish for (dpNodeIdx in dpNodeRegion) {
-        //.OUT.println("single loop of default policy section. dpNodeIdx: " + dpNodeIdx);
-        //.OUT.println("d(dpNodeIdx(0): " + d(dpNodeIdx(0)));
 	val dpNode = dpNodes.get(dpNodeIdx(0));
-//	at (d(dpNodeIdx(0))) {
-//        at (Place(0)) {
-//        at (Place.FIRST_PLACE) {
+
+        val currBoardState:BoardState = dpNode.state;
+	at (da.dist(dpNodeIdx(0))) {
 	  async {
-	    val outcome:Double = defaultPolicy(positionsSeen, dpNode,
-					       defaultPolicyDepth);
-	    numDefaultPolicies.incrementAndGet();
-	    backProp(dpNode, outcome);
+	    // da(dpNodeIdx(0)) = defaultPolicy(positionsSeen,
+            //                                  currBoardState,
+            //                                  defaultPolicyDepth);
+
+
+            val dp_value_total = new AtomicDouble(0.0);
+
+            finish {
+              for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
+                async {
+                  var currNode:MCTNode = new MCTNode(currBoardState);
+                  var tempNode:MCTNode;
+                  var currDepth:Int = 0;
+                  val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+                  randomGameMoves.add(currNode.state.hashCode());
+                  while(currNode != null && !currNode.isLeaf() &&
+                        currDepth < defaultPolicyDepth) {
+                    // TODO: does this really need to be generateRandomChildState()?
+                    tempNode = currNode.generateChildNoModify(randomGameMoves);
+                    if(tempNode != null) {
+                      currNode = tempNode;
+                      randomGameMoves.add(currNode.state.hashCode());
+                    }
+                    currDepth++;
+                  }
+                  dp_value_total.getAndAdd(leafValue(currNode));
+                }
+              }
+            }
+
+            da(dpNodeIdx(0)) = dp_value_total.get();
+
+
+
 	  }
-//	}
+	}
       }
-      //.OUT.println("finished the 'finish' section.");
-    }
+
+      Console.OUT.println("Here's the distarray: ");
+      for(dpNodeIdx in dpNodeRegion) {
+        at(da.dist(dpNodeIdx(0))) {
+          Console.OUT.print(da(dpNodeIdx(0)) + ", ");
+        }
+      }
+      Console.OUT.println();
+
+      // TODO:
+      numDefaultPolicies.incrementAndGet();
+
+      finish for (dpNodeIdx in dpNodeRegion) {
+	val dpNode = dpNodes.get(dpNodeIdx(0));
+        if(numAsyncsSpawned.get() < MAX_ASYNCS) {
+          numAsyncsSpawned.incrementAndGet();
+          async {
+            val outcome:Double =
+              at(da.dist(dpNodeIdx(0)))
+                da(dpNodeIdx(0));
+            backProp(dpNode, outcome);
+            numAsyncsSpawned.decrementAndGet();
+          } 
+        } else {
+            val outcome:Double =
+              at(da.dist(dpNodeIdx(0)))
+                da(dpNodeIdx(0));
+            backProp(dpNode, outcome);
+        }
+      }
+
+    } // end 'while within resource bound'
 
     var bestChild:MCTNode = getBestChild(0);
     return bestChild;
   }
-
+    
 
   public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
-    //.OUT.println("EMU aggReward: " + aggReward);
     var child:MCTNode;
-    //.OUT.println("[treePolicy] generating a child.");
     child = generateChild(positionsSeen);
-    //.OUT.println("[treePolicy] finished generating child.");
 
     // no children (leaf or all children)
     if(child == null) { 
       if(children.isEmpty()){
-        //.OUT.println("[treePolicy] returning this");
         return this;
       } else {
         // recursive descent through the tree, best choice at each step:
@@ -260,28 +302,20 @@ public class MCTNode {
 	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
 	newPositionsSeen.add(this.state.hashCode());
 
-        //.OUT.println("[treePolicy] returning recursive descent");
-        if(bc == null) {
-          //.OUT.println("bc is null.");
-        }
         return bc.treePolicy(newPositionsSeen);
       }
     } else {
       children.add(child);
-      //.OUT.println("[treePolicy] returning child");
-      //.OUT.println("LIZARD aggReward: " + aggReward);
       return child;
     }
   }
 
 
   public def generateChildNoModify(positionsSeen:HashSet[Int]):MCTNode {
-    //Console.OUT.println("inside generate child.");
     //generate the passing child
 
     val possibleMoves = unexploredMoves.clone();
     while(!possibleMoves.isEmpty()) {
-      //Console.OUT.println("looping inside genchild");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
@@ -304,17 +338,14 @@ public class MCTNode {
   }
 
   public def generateChild(positionsSeen:HashSet[Int]):MCTNode {
-    //Console.OUT.println("inside generate child.");
     //generate the passing child
 
     if(unexploredMoves.isEmpty() && !expanded) {
-      //Console.OUT.println("generating the passing move.");
       expanded = true;
       return new MCTNode(this, state, true);
     }
 
     while(!unexploredMoves.isEmpty()) {
-      //Console.OUT.println("looping inside genchild");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
@@ -336,31 +367,30 @@ public class MCTNode {
   }
 
   public def defaultPolicy(val positionsSeen:HashSet[Int],
-			   val startNode:MCTNode,
+			   val startState:BoardState,
 			   val maxDepth:Int):Double {
 
-    //Console.OUT.println("playing a default policy.");
     val dp_value_total = new AtomicDouble(0.0);
 
     finish {
       for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
-	async {
-	  var currNode:MCTNode = startNode;
-	  var tempNode:MCTNode;
-	  var currDepth:Int = 0;
-	  val randomGameMoves:HashSet[Int] = positionsSeen.clone();
-	  randomGameMoves.add(currNode.state.hashCode());
-	  while(currNode != null && !currNode.isLeaf() && currDepth < maxDepth) {
-	    // TODO: does this really need to be generateRandomChildState()?
-	    tempNode = currNode.generateChildNoModify(randomGameMoves);
-	    if(tempNode != null) {
+        async {
+          var currNode:MCTNode = new MCTNode(startState);
+          var tempNode:MCTNode;
+          var currDepth:Int = 0;
+          val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+          randomGameMoves.add(currNode.state.hashCode());
+          while(currNode != null && !currNode.isLeaf() && currDepth < maxDepth) {
+            // TODO: does this really need to be generateRandomChildState()?
+            tempNode = currNode.generateChildNoModify(randomGameMoves);
+            if(tempNode != null) {
               currNode = tempNode;
               randomGameMoves.add(currNode.state.hashCode());
-	    }
-	    currDepth++;
-	  }
-	  dp_value_total.getAndAdd(leafValue(currNode));
-	}
+            }
+            currDepth++;
+          }
+          dp_value_total.getAndAdd(leafValue(currNode));
+        }
       }
     }
     return dp_value_total.get();
@@ -463,7 +493,6 @@ public class MCTNode {
 
   public def gameIsOver():Boolean {
     if(parent != null) {
-      Console.OUT.println("[gameIsOver] pass: " + pass + "parent.pass: " + parent.pass);
       return pass && parent.pass;
     } else {
       return false;
