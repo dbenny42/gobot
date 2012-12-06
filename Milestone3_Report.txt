@@ -1,12 +1,12 @@
 David Benedetto & Stephen Pratt
 Parallel Programming
 
+========================================================================
 Gobot - The Go-Playing Parallel Bot
-
-
+========================================================================
 
 INVOCATION:
-
+========================================================================
 make play # will build and start a 7x7 version of the human VS. AI game.
           # this is more to see the gameplay than to actually test the
           # performance of our project.
@@ -16,9 +16,8 @@ make play # will build and start a 7x7 version of the human VS. AI game.
 
 
 
-
 NOTES ON USAGE
-
+========================================================================
 To make a move against the AI, type the row, then column of the piece that
 you wish to play, such as "a2", "b4", or "c5", as they are labeled on the
 board printout.
@@ -28,31 +27,210 @@ C++ compiler, as we had some currently-unexplained compiler errors occur
 at the level of Java code, but not at X10 code.
 
 
-
+========================================================================
 MILESTONE 3 REPORT
+========================================================================
 
 WHAT'S IMPLEMENTED
+========================================================================
 At this point in time, a functional parallel version of the AI has been
-implemented, built on top of the serial version implemented for Milestone
-2, along with 
+implemented. This parallel AI is built on top of the serial version
+implemented for Milestone 2. The AI can play against either a single
+human player interactively (./Go N N 1) or an extremely naive AI
+opponent for testing on a batch environment (./Go N N 0).
+
+
+BACKGROUND:
+========================================================================
+Our AI is powered by a Monte Carlo Tree Search algorithm. The outline
+for this algorithm is as follows:
+
+def MCTreeSearch (root) {
+    while (within computational budget) {
+    	   node = treePolicy(root);
+	   outcome = defaultPolicy(node);
+	   backPropagate(node, outcome);
+    }
+    return bestChild(root);
+}
+
+At a high level, this algorithm picks an ancestor of the root of the
+game tree to simulate a random game on. This ancestor is chosen by
+treePolicy() and may be conceptualized as some child of "the most
+promising" node in the known game tree. In addition to selecting this
+new node for simulation, treePolicy() also adds it to the known game
+tree. Once a node is added to the known game tree, we are able to
+measure how "promising" it is using a method to be described soon.
+
+After selecting our node for simulation, we run what is known as the
+defaultPolicy() on this node. This amounts to running a random
+simulation of a possible game evolution starting at this node. Once
+this simulation is completed, it is associated with some evaluation of
+"outcome" on the interval [0, 1]. An outcome of 0 is the least
+desirable, and outcome of 1 is the most desirable.
+
+Once we have our observed outcome, we run a final backPropagate()
+step. This starts at the node selected for simulation (a leaf node in
+the KNOWN game tree) and updates how promising it is, propagating
+these changes back to the root of the game tree. Nodes that are
+frequently part of a path with a good outcome become more promising,
+while those that are frequently part of a path with bad outcome become
+less promising.
+
+This process is repeated until we reach some predefined computational
+budget (e.g. 1500ms of thought or 60 nodes added to known game
+tree). Once this budget is reached, we select the most promising child
+of the root as our play.
 
 
 OUR PARALLELISM
+========================================================================
+Our decisions on where and how to include our parallelism were based
+on the following observations:
+
+   1) Using parallelism to more quickly process the evolution of state
+   on the Go game board would likely prove extremely hazardous. While
+   exploiting parallelism in this way would allow us to process game
+   boards more quickly, it is also highly granular and prone to
+   concurrency errors. Because of this, we chose to focus our parallel
+   resources on the actual Monte Carlo Tree Search rather than board
+   processing.
+   
+   2) The treePolicy() portion of the MCTS algorithm is highly
+   mutually exclusive. Running N treePolicy() calls concurrently for
+   better exploration would mean finding the top N nodes in an
+   unorganized tree of size >> N. Thus, treePolicy() calls are made
+   sequentially.
+
+   3) The defaultPolicy() portion of the MCTS algorithm is a gold-mine
+   of concurrency. Individual Monte Carlo simulations share no data
+   and can even be processed on foreign places.
+
+   4) The backPropagation() portion of the MCTS can be parallelized
+   through the aid of AtomicInteger operations, but must all be done
+   on the "home place". That is, the one which is keeping track of the
+   known game tree.
+
+   5) Finally, in the case of Monte Carlo Tree Search, more nodes
+   being processed concurrently means less information at each step. A
+   call to treePolicy relies on the defaultPolicy and backPropagate
+   functions to help inform it on which nodes are most promising. If
+   we were to process all of nodes at once, we would need to select
+   them without information, defeating the purpose of the algorithm.
+
+With these in mind, we elected to base our parallelism on the idea of
+processing nodes in batches. Our parallel modifications to the
+algorithm may be expressed as follows:
+
+def MCTreeSearch (root) {
+    while (within computational budget) {
+
+    	  // Generate BATCH_SIZE nodes to expand sequentially
+	  // via treePolicy
+
+	  // Process the defaultPolicy of the BATCH_SIZE nodes
+	  // in parallel, making use of foreign places.
+
+	  // Process the backPropagation of each of the nodes
+	  // in parallel locally.
+
+    }
+    return bestChild(root);
+}
 
 
+But wait! What if we want to use parallelism to improve not only our
+rate of exploration, but the confidence of our simulations as
+well. Instead of using MAX_PLACES*MAX_ASYNCS sources of parallelism
+to run a single defaultPolicy() simulation on MAX_PLACES*MAX_ASYNCS
+new tree nodes, we have the option of running N simulations on
+MAX_PLACES*MAX_ASYNCS/N new tree nodes.
+
+Thus, we define the following parameters for tuning our parallelism:
+
+MAX_ASYNCS = 	    Number of asynchronous activities that can be processed
+	   	    at a given place.
+
+		    (initialized as $X10_NTHREADS * 1.1)
+
+MAX_PLACES = 	    Number of distinct places to use for processing.
+
+	   	    (initialized as Places.MAX_PLACES)
+
+BATCH_SIZE = 	    A parameter that trades off confidence for speed. A
+	   	    larger batch size will result in more tree nodes being
+	   	    explored in a given amount of time. A smaller batch size
+	     	    will result in tree nodes being more carefully selected
+	     	    and simulated.
+
+		    (initialized as PLACES.MAX_PLACES)
+
+MAX_DP_PATHS =      Number of distinct paths generated during a call
+	     	    to defaultPolicy()
+
+		    (always equals MAX_ASYNCS * MAX_PLACES / BATCH_SIZE) 
 
 
 TESTING / SCALING
+========================================================================
+Note: In order to examine the scaling power of our concurrency,
+BATCH_SIZE was set to MAX_ASYNCS for these trials. Testing was done on
+the CLIC lab (since the number of places available on spicerack was
+also 1)
+
+X10_NTHREADS = 1:
+total nodes processed: 61236 nodes
+total time elapsed: 12139 ms
+processing rate: 5.05 nodes / ms
+
+X10_NTHREADS = 2:
+total node processed: 139968 nodes
+total time elapsed: 41422
+processing rate: 3.7 nodes / ms
+
+X10_NTHREADS = 4:
+total node processed: 100602 nodes
+total time elapsed: 33425 ms
+processing rate: 3.01 nodes / ms
+
+X10_NTHREADS = 8:
+total node processed: 104976 nodes
+total time elapsed: 28686 ms
+processing rate: 3.66 nodes / ms
+
+X10_NTHREADS = 16:
+total node processed: 74358 nodes
+total time elapsed: 24925 ms
+processing rate: 2.98 nodes / ms
+
+Clearly, our scaling is moving in the wrong direction. We would expect
+the processing rate to scale linearly with our number of threads when
+in fact it seems that we slow down with more threads present.
 
 
+EVALUATION OF PROGRESS
+========================================================================
+Our goal for this milestone was to augment our existing Go AI to fully
+exploit parallel resources. Unfortunately, it seems that we only got
+as far as developing a parameter-tuned parallel processing plan. Though
+our AI is able to outsmart its naive opponent, there seems to be
+something keeping us from getting the kind of scaling we expect.
+
+Our AI, additionally, is not currently quite as smart as we'd like it to
+be. Though its performance skyrocketed after we began processing
+multiple defaultPolicy() paths, we noticed a decline upon including
+multi-place parallel constructs. This indicates to us that our code is
+afflicted with a subtle bug that saps the potential of our
+AI. Hopefully, this same bug is also accountable for our scaling issues.
 
 
 REMAINING GOALS
-
+========================================================================
 Our chief goal for the Milestone 4 is:
 
-
-
+Optimize our code (both within MCTS and the internal board processing
+logic) in order to make the parallel structure we have in place work
+better for the GoBot (and allowing it to conquer a more difficult opponent!)
 
 In working toward that goal, we have the following steps in mind:
 
@@ -63,6 +241,7 @@ In working toward that goal, we have the following steps in mind:
 -eliminating the dynamically checked calls, which, according to a lecture
  earlier in the course, would yield a performance gain.
 
+-diagnosing and resolving the bugs discussed in the section above
 
-We are unsure where else we can add parallelism to the project, as there
-are relatively few places to see gains from parallelism in tree searching.
+-developing a way for the AI to face a more difficult opponent
+ (ideally GNU Go, as per our proposal).

@@ -37,7 +37,7 @@ public class Go {
   public static def randomComputerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int]):MCTNode {
     var nodeToAdd:MCTNode;
     Console.OUT.println("the idiotBot is thinking....");
-    if(currNode.getBoardState().listOfEmptyIdxs().size() < currNode.getBoardState().getWidth()) {
+    if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
       nodeToAdd = currNode.generateChildNoModify(positionsSeen);
