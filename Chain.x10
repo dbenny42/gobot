@@ -1,12 +1,15 @@
 import x10.util.HashSet;
 import x10.util.StringBuilder;
 
-public class Chain {
+public struct Chain {
 
   private val stone:Stone;
   private val members:HashSet[Int];
   private val adjacencies:HashSet[Int];
   private val liberties:HashSet[Int];
+
+  public static val NONE = new Chain(); 
+  
 
   /**
    * Constructs a new Chain from a singleton stone. Performs no merging.
@@ -38,6 +41,13 @@ public class Chain {
     this.members = toCopy.getMembers();
     this.adjacencies = toCopy.getAdjacencies();
     this.liberties = toCopy.getLiberties();
+  }
+
+  public def this() {
+    this.stone = Stone.EMPTY;
+    this.members = null;
+    this.adjacencies = null;
+    this.liberties = null;
   }
 
   public def toString():String {

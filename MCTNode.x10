@@ -18,7 +18,7 @@ public class MCTNode {
 
 
   // fields
-  private var parent:MCTNode;
+  private val parent:MCTNode;
   private val turn:Stone;
   private val children:ArrayList[MCTNode];
   private val timesVisited:AtomicInteger;
@@ -41,7 +41,8 @@ public class MCTNode {
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
-  private static val MAX_NODES_PROCESSED:Int = 100000;
+  // TODO: update formula, change number of default policies we want to
+  // target at each place.  Magic # here is 50 dps.
 
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
@@ -50,6 +51,8 @@ public class MCTNode {
   public static val dpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val bpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val tpTimeElapsed:AtomicLong = new AtomicLong(0);
+
+
 
 
   // constructors
@@ -139,9 +142,18 @@ public class MCTNode {
   }
 
 
-  public def withinResourceBound(nodesProcessed:AtomicInteger,
-        			 bound:Int):Boolean{
-    return nodesProcessed.get() < bound;
+  /*
+   * the node bound is calculated like this:
+   * 1.1 * number of squares on the board approximates the number of moves
+   * that a default policy will randomly generate to get to an end state.
+   * We do a default policy for each square, so multiply by board size again.
+   * Do 50 of those, for each square.
+   */
+  
+  public def withinResourceBound(nodesProcessed:AtomicInteger):Boolean {
+    val nodesProcessedBound = 10;//50 * 1.1 * this.state.getSize() * this.state.getSize();
+    Console.OUT.println("[withinResourceBound] checking nodesProcessed: " + nodesProcessed.get());
+    return nodesProcessed.get() < nodesProcessedBound;
   }
 
 
@@ -154,6 +166,7 @@ public class MCTNode {
 
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
+
     // Console.OUT.println("max default policies: " + MAX_DEFAULT_POLICIES);
     // Console.OUT.println("max_dp_paths: " + MAX_DP_PATHS);
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
@@ -165,12 +178,16 @@ public class MCTNode {
     numAsyncsSpawned.set(0);
 
     //while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
-    while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
+    // TODO: fix the validMovesLeft() hack here.
+    if (!validMoveLeft()) {
+      Console.OUT.println("no valid move found.");
+      return new MCTNode(this, this.state, true);
+    }
+    while(withinResourceBound(nodesProcessed)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
       val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
-
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -214,15 +231,7 @@ public class MCTNode {
         finish {
           for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
             async {
-              // Console.OUT.println("[default policy] BEFORE copy the currNode.");
-              for (var j:Int = 0; j < currBoardState.getSize(); j++) {
-                Stone.canPlaceOn(currBoardState.stoneAt(j));
-              }
               var currNode:MCTNode = new MCTNode(this, currBoardState);
-              // Console.OUT.println("[default policy] AFTER copy the currNode.");
-              for (var j:Int = 0; j < currNode.state.getSize(); j++) {
-                Stone.canPlaceOn(currNode.state.stoneAt(j));
-              }
               // Console.OUT.println("[default policy] node we're running on:");
               // Console.OUT.println("[default policy] currNode.turn: " + currNode.turn);
               // Console.OUT.println(currNode.getBoardState().print());
@@ -236,9 +245,9 @@ public class MCTNode {
                 nodesProcessed.incrementAndGet();
                 // Console.OUT.println("[default policy] unexplored moves: " + currNode.unexploredMoves.size());
                 tempNode = currNode.generateChildNoModify(randomGameMoves);
-                // Console.OUT.println("[default policy] random child:");
+                //Console.OUT.println("[default policy] random child:");
 
-                // Console.OUT.println(tempNode.getBoardState().print());
+                //Console.OUT.println(tempNode.getBoardState().print());
                 if(tempNode != null) {
                   // Console.OUT.println("[default policy] non-null; adding it to the random game.");
                   currNode = tempNode;
@@ -246,10 +255,9 @@ public class MCTNode {
                 }
                 currDepth++;
               }
-              // Console.OUT.println("[default policy] yielding on this board: ");
-              // Console.OUT.println(currNode.getBoardState().print());
-              // Console.OUT.println("the leaf value of this board is " + currNode.leafValue());
-
+              //Console.OUT.println("[default policy] yielding on this board: ");
+              //Console.OUT.println(currNode.getBoardState().print());
+              //Console.OUT.println("the leaf value of this board is " + currNode.leafValue());
               // TODO: this is the minimax error.
               dpValueTotal.getAndAdd(currNode.leafValue());
             }
@@ -345,7 +353,7 @@ public class MCTNode {
     // Console.OUT.println("[generateChildNoModify] current turn: " + this.turn);
     while(!possibleMoves.isEmpty()) {
       var randIdx:Int;
-      var possibleState:BoardState = null;
+      var possibleState:BoardState = BoardState.NONE;
 
       // TODO: should this be possibleMoves?
       // if it should be, this check is redundant:
@@ -359,7 +367,8 @@ public class MCTNode {
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
-      if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
+      if(possibleState != BoardState.NONE &&
+         !positionsSeen.contains(possibleState.hashCode())) {
         // Console.OUT.println("found a valid move with randidx");
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
@@ -380,7 +389,7 @@ public class MCTNode {
 
     while(!unexploredMoves.isEmpty()) {
       var randIdx:Int;
-      var possibleState:BoardState = null;
+      var possibleState:BoardState = BoardState.NONE;
 
       if (unexploredMoves.size() > 0) {
 	randIdx = rand.nextInt(unexploredMoves.size());
@@ -390,7 +399,8 @@ public class MCTNode {
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
-      if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
+      if(possibleState != BoardState.NONE &&
+         !positionsSeen.contains(possibleState.hashCode())) {
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
@@ -466,7 +476,7 @@ public class MCTNode {
   // TODO: Make sure !validMoveLeft() is still OK
   public def isLeaf():Boolean {
     // leaf: no valid moves or two preceding moves were passes    
-    return isLeafOnPasses();// || !validMoveLeft();
+    return isLeafOnPasses() || !validMoveLeft();
   }
 
   public def isLeafOnPasses():Boolean {
@@ -476,9 +486,10 @@ public class MCTNode {
 	    parent.parent.pass);
   }
 
+  // TODO: is there an O(1) way to do this
   public def validMoveLeft():Boolean {
     for(var i:Int = 0; i < state.getSize(); i++) {
-      if(state.doMove(i, turn) != null) {
+      if(state.doMove(i, turn) != BoardState.NONE) {
         return true;
       }
     }

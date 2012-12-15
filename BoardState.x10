@@ -4,7 +4,10 @@ import x10.util.Pair;
 import x10.util.ArrayList;
 import x10.util.Stack;
 
-public class BoardState {
+public struct BoardState {
+
+
+  public static val NONE = new BoardState();
 
   private val HASH_NUM_WIDTH:Int = 20;
   private val HASH_NUM_BASE:Int = 3;
@@ -18,10 +21,11 @@ public class BoardState {
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
-  private var whiteScore:Int;
-  private var blackScore:Int;
+  private val whiteScore:Int;
+  private val blackScore:Int;
 
-  private var hash:Int;
+
+  // private var hash:Int;
 
   /**
    * Constructs a new BoardState for an empty board with the given dimensions.
@@ -67,6 +71,18 @@ public class BoardState {
     this.blackScore = toCopy.blackScore;
 
     this.hashNums = new Array[Int](toCopy.hashNums);
+  }
+
+
+  public def this() {
+    this.height = 0;
+    this.width = 0;
+    this.hashNums = null;
+    this.stones = null;
+    this.chains = null;
+
+    this.whiteScore = 0;
+    this.blackScore = 0;
   }
 
   // assumes equal height and width
@@ -393,13 +409,13 @@ public class BoardState {
 
     // Make sure we're not trying to push an empty stone
     if (Stone.canPlaceOn(stone))
-      return null;
+      return BoardState.NONE;
     
     // Make sure we ARE pushing ONTO an empty stone
     val oldStone:Stone = this.stoneAt(idx);
     //Console.OUT.println("canPlaceOn is " + Stone.canPlaceOn(oldStone));
     if (!Stone.canPlaceOn(oldStone))
-      return null;
+      return BoardState.NONE;
 
     // Copy the board so we can start modifying
     val newBoard:BoardState = new BoardState(this);
@@ -420,9 +436,10 @@ public class BoardState {
 
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
-    if (newChain == null || newChain.isDead()) {
+    //if (newChain == null || newChain.isDead()) {
+    if (newChain == Chain.NONE || newChain.isDead()) {
       //Console.OUT.println("Failed because of suicide rule");
-      return null;
+      return BoardState.NONE;
     }
 
     // Compute changes to territory and score
@@ -467,7 +484,8 @@ public class BoardState {
     val chainsPrinted = new HashSet[Chain]();
 
     for (var idx:Int = 0; idx < this.chains.size; idx++) {
-      if (this.chains(idx) != null && !chainsPrinted.contains(this.chains(idx))) {
+      //if (this.chains(idx) != null && !chainsPrinted.contains(this.chains(idx))) {
+      if (this.chains(idx) != Chain.NONE && !chainsPrinted.contains(this.chains(idx))) {
 	sb.add("CHAIN: ");
 	sb.add(this.chains(idx).toString());
 	sb.add("\n");
@@ -646,7 +664,8 @@ public class BoardState {
   private def getChainsAt(indices:HashSet[Int]):HashSet[Chain] {
     val chainSet:HashSet[Chain] = new HashSet[Chain]();
     for (index in indices) {
-      if (this.chains(index) != null) {
+      //if (this.chains(index) != null) {
+      if (this.chains(index) != Chain.NONE) {
 	chainSet.add(this.chains(index));
       }
     }
@@ -675,7 +694,8 @@ public class BoardState {
     // Merge with adjacent chains
     val adjIndices = getAdjacentIndices(row, col);
     for (adjChain in getChainsAt(adjIndices)) {
-      if (adjChain != null && adjChain.getStone() == stone) {
+      //if (adjChain != null && adjChain.getStone() == stone) {
+      if (adjChain != Chain.NONE && adjChain.getStone() == stone) {
 	    mergeAndUpdate(this.chains(idx), idx, adjChain);
       }
     }
@@ -702,7 +722,8 @@ public class BoardState {
       // Captured stones become opponent territory
       this.removePiece(memberIdx, 
 		       Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone())));
-      this.chains(memberIdx) = null;
+      //this.chains(memberIdx) = null;
+      this.chains(memberIdx) = Chain.NONE;
     }
 
     /* Inform this chain's neighbors of its death */

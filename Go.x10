@@ -28,19 +28,23 @@ public class Go {
     return (toMove == Stone.BLACK) ? Stone.WHITE : Stone.BLACK;
   }
 
-  public static def printWinner(var currNode:MCTNode) {
+  // optionally, pay attention to the return type.
+  public static def printWinner(var currNode:MCTNode):Stone {
     if(currNode.getBoardState().currentLeader() == Stone.WHITE) {
       Console.OUT.println("White wins.  Black should go think about what a horrible Go player (s)he is.");
+      return Stone.WHITE;
     } else if (currNode.getBoardState().currentLeader() == Stone.BLACK) {
       Console.OUT.println("Black wins.  White should go die in a hole, as everyone wishes him/her to.");
+      return Stone.BLACK;
     } else {
       Console.OUT.println("It was a tie.  Go think about the choices you've made in your pathetic life.");
+      return Stone.EMPTY;
     }
   }
 
   public static def randomComputerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int]):MCTNode {
     var nodeToAdd:MCTNode;
-    Console.OUT.println("the idiotBot is thinking....");
+    //Console.OUT.println("the idiotBot is thinking....");
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
@@ -52,16 +56,16 @@ public class Go {
       currNode.setPass(true);
     }
 
-    Console.OUT.println("finished idiotBot turn.");
+    //Console.OUT.println("finished idiotBot turn.");
     return currNode;
   }
 
   public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
-    Console.OUT.println("the gobot is thinking....");
+    //Console.OUT.println("the gobot is thinking....");
     nodeToAdd = currNode.UCTSearch(positionsSeen);
 
-    Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
+    //Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
     //currNode.addRealMoveAsChild(nodeToAdd);
     
@@ -76,7 +80,7 @@ public class Go {
     //   Console.OUT.println("the computer node has no children.");
     // }
     
-    Console.OUT.println("finished gobot turn.");
+    //Console.OUT.println("finished gobot turn.");
     return currNode;
   }
 
@@ -84,8 +88,8 @@ public class Go {
   public static def humanTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], var toMove:Stone, val HEIGHT:Int, val WIDTH:Int):MCTNode {
     var moveIdx:Int = 0;
     var moveStr:String = "";
-    var tempState:BoardState = null;
-    while(tempState == null || positionsSeen.contains(tempState.hashCode())) {
+    var tempState:BoardState = BoardState.NONE;
+    while(tempState == BoardState.NONE || positionsSeen.contains(tempState.hashCode())) {
 
       Console.OUT.println("please enter your move.");
       moveStr = Console.IN.readLine();
@@ -114,7 +118,7 @@ public class Go {
       moveIdx = parseMove(moveStr, HEIGHT, WIDTH);
       tempState = currNode.getBoardState().doMove(moveIdx, toMove);
 
-      if(tempState == null) {
+      if(tempState == BoardState.NONE) {
         Console.OUT.println("this move is invalid.  try again.");
         continue;
       }
@@ -162,7 +166,7 @@ public class Go {
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
 
     while(!currNode.gameIsOver()) {
-      //Console.OUT.println(currNode.getBoardState().print());
+      // Console.OUT.println(currNode.getBoardState().print());
       if(toMove == Stone.BLACK) {
         currNode = computerTurn(currNode, positionsSeen, toMove);
       } else {
@@ -189,7 +193,14 @@ public class Go {
 
 
 
-    printWinner(currNode);
+    val winner:Stone = printWinner(currNode);
+    // this is for the test harness.
+    if (winner == Stone.BLACK)
+      return 1;
+    else if (winner == Stone.WHITE)
+      return -1;
+    else
+      return 0; // tie.
   }
 
 
@@ -279,9 +290,9 @@ public class Go {
       singlePlayerGame(humanStone, gameTree, HEIGHT, WIDTH);
     }
     else if(NUMHUMANS == 2) {
-      return twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
+      twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
     } else if(NUMHUMANS == 0) {
-      return zeroPlayerGame(gameTree);
+      zeroPlayerGame(gameTree);
     } else {
       Console.OUT.println("invalid argument for number of humans.");
     }
