@@ -1,5 +1,7 @@
 // A single node in the Go game tree.
 
+import x10.io.InputStreamReader;
+import x10.util.StringBuilder;
 import x10.util.ArrayList;
 import x10.util.Random;
 import x10.util.Timer;
@@ -30,19 +32,29 @@ public class MCTNode {
   private var expanded:Boolean;
 
 
+  // DEBUG STUFF
+  private static val DEBUG_MODE = 
+    Int.parseInt(System.getenv().getOrElse("GOBOT_DEBUG", "0"));
+  private static val UCT_DETAIL = 1<<0;
+  private static val TP_DETAIL = 1<<1;
+  private static val DP_DETAIL = 1<<2;
+  private static val BP_DETAIL = 1<<3;
+  private static val TP_ITR_DETAIL = 1<<4;
+  private static val GBC_DETAIL = 1<<5;
+  private static val BOARD_DETAIL = 1<<10;
 
+  // Parallelism controls
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
-  private static val x10_nthreads = 
+  private static val x10Nthreads = 
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
-
-  private static val MAX_ASYNCS:Int = (x10_nthreads * 1.1) as Int;
+  private static val MAX_ASYNCS:Int = (x10Nthreads * 1.1) as Int;
   private static val MAX_PLACES:Int = Place.MAX_PLACES;
   private static val BATCH_SIZE:Int = MAX_PLACES;
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
+  // Metric values
   private static val MAX_NODES_PROCESSED:Int = 100000;
-
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
   public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
@@ -118,23 +130,25 @@ public class MCTNode {
     for(var i:Int = 0; i < children.size(); i++) {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
-      // Console.OUT.println("[getBestChild] times explored: " + currChild.timesVisited);
-      // Console.OUT.println("[getBestChild] aggReward: " + currChild.aggReward);
 
-      // Console.OUT.println("[getBestChild] current option: " + currVal);
+      pdebug("getBestChild", GBC_DETAIL, 
+	     currChild.hashCode() + 
+	     "- UCB is : " + currVal + " vs " + bestVal);
 
       if (c == 0.0) {
         // Console.OUT.println("[getBestChild] board: ");
         // Console.OUT.println(currChild.getBoardState().print());
       }
       if(currVal > bestVal) {
-        // Console.OUT.println("[getBestChild] new best val: " + currVal);
         bestVal = currVal;
         bestValArg = currChild;
       }
 
     }
-    // Console.OUT.println("[getBestChild] returning best child with value: " + bestVal);
+
+    pdebug("getBestChild", GBC_DETAIL, 
+	   "returning " + bestValArg.hashCode() + " (UCB: " +
+	   + bestVal + ")");
     return bestValArg;
   }
 
@@ -168,6 +182,8 @@ public class MCTNode {
     while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
+
+      // Tree Policy Start
       val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
 
@@ -179,53 +195,35 @@ public class MCTNode {
       }
 
       tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
-      // Console.OUT.println("[tree policy] finished, yielding boards: ");
-      //for(var i:Int = 0; i < dpNodes.size(); i++) {
-        // Console.OUT.println("[tree policy] board: ");
-        // Console.OUT.println(dpNodes(i).getBoardState().print());
-        // Console.OUT.println("[tree policy] its unexplored moves: " + dpNodes(i).unexploredMoves.size());
-        // Console.OUT.println("[tree policy] turn: " + dpNodes(i).turn);
-      //}
+      // Tree Policy End
+
+      pdebugWait("UCTSearch", TP_DETAIL,
+		 "WILL EXPLORE\n" + printTPResults(dpNodes));
+      pdebugWait("UCTSearch", TP_DETAIL,
+		 printSearchTree());
 
       val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
-      val dpNodeResults:Array[Double] = new Array[Double](dpNodes.size());
+      val dpNodeResults:Array[AtomicDouble] = (
+	new Array[AtomicDouble](dpNodes.size(), 
+				(x:Int)=>new AtomicDouble()));
+
+      // Default Policy Start
       val dpStartTime = Timer.nanoTime();
       finish for (dpNodeIdx in dpNodeRegion) {
+
 	val dpNode = dpNodes.get(dpNodeIdx(0));
-
-        // Console.OUT.println("[default policy] BEFORE assignment of currBoardState.");
-        for (var j:Int = 0; j < dpNode.state.getSize(); j++) {
-          Stone.canPlaceOn(dpNode.state.stoneAt(j));
-        }
-
         val currBoardState:BoardState = dpNode.state;
-
-        // Console.OUT.println("[default policy] AFTER assignment of currBoardState.");
-        for (var j:Int = 0; j < currBoardState.getSize(); j++) {
-          Stone.canPlaceOn(currBoardState.stoneAt(j));
-        }
-
 
         // TODO: the issue is the at.  it appears to be changing the values.
         // inlined default policy:
-
-        val dpValueTotal = new AtomicDouble(0.0);
-
         finish {
           for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
             async {
-              // Console.OUT.println("[default policy] BEFORE copy the currNode.");
-              for (var j:Int = 0; j < currBoardState.getSize(); j++) {
-                Stone.canPlaceOn(currBoardState.stoneAt(j));
-              }
               var currNode:MCTNode = new MCTNode(this, currBoardState);
-              // Console.OUT.println("[default policy] AFTER copy the currNode.");
-              for (var j:Int = 0; j < currNode.state.getSize(); j++) {
-                Stone.canPlaceOn(currNode.state.stoneAt(j));
-              }
-              // Console.OUT.println("[default policy] node we're running on:");
-              // Console.OUT.println("[default policy] currNode.turn: " + currNode.turn);
-              // Console.OUT.println(currNode.getBoardState().print());
+
+	      pdebug("defaultPolicy", DP_DETAIL,
+		     "Start DP for " + printNode(dpNode));
+
               var tempNode:MCTNode;
               var currDepth:Int = 0;
               val randomGameMoves:HashSet[Int] = positionsSeen.clone();
@@ -234,75 +232,83 @@ public class MCTNode {
               while(currNode != null && !currNode.isLeaf() &&
                     currDepth < defaultPolicyDepth) {
                 nodesProcessed.incrementAndGet();
-                // Console.OUT.println("[default policy] unexplored moves: " + currNode.unexploredMoves.size());
                 tempNode = currNode.generateChildNoModify(randomGameMoves);
                 // Console.OUT.println("[default policy] random child:");
 
                 // Console.OUT.println(tempNode.getBoardState().print());
                 if(tempNode != null) {
-                  // Console.OUT.println("[default policy] non-null; adding it to the random game.");
                   currNode = tempNode;
                   randomGameMoves.add(currNode.state.hashCode());
                 }
                 currDepth++;
               }
-              // Console.OUT.println("[default policy] yielding on this board: ");
-              // Console.OUT.println(currNode.getBoardState().print());
-              // Console.OUT.println("the leaf value of this board is " + currNode.leafValue());
+
+	      pdebug("defaultPolicy", DP_DETAIL,
+		     "Done with DP for " + printNode(dpNode) + "\n" +
+		     "Result is " + printNode(currNode) + "\n" +
+		     "Leaf value is " + currNode.leafValue());
 
               // TODO: this is the minimax error.
-              dpValueTotal.getAndAdd(currNode.leafValue());
+              dpNodeResults(dpNodeIdx(0)).getAndAdd(currNode.leafValue());
             }
           }
         }
-
-        dpNodeResults(dpNodeIdx(0)) = dpValueTotal.get();
 
         // TODO: we do more than one default policy.  figure out how many to
         // increment this by.
         numDefaultPolicies.getAndAdd(1);
       }
 
+
       dpTimeElapsed.addAndGet(Timer.nanoTime() - dpStartTime);
+      // Default Policy End
 
+      pdebugWait("UCTSearch", DP_DETAIL,
+		 "RESULTS:\n" + printDPResults(dpNodes, dpNodeResults));
+      pdebugWait("UCTSearch", DP_DETAIL,
+		 printSearchTree());
 
+      // Back Propagate Start
       val bpStartTime = Timer.nanoTime();
       finish for (dpNodeIdx in dpNodeRegion) {
 	val dpNode = dpNodes(dpNodeIdx(0));
         if(numAsyncsSpawned.get() < MAX_ASYNCS) {
           numAsyncsSpawned.incrementAndGet();
           async {
-            val outcome:Double = dpNodeResults(dpNodeIdx);
+            val outcome:Double = dpNodeResults(dpNodeIdx).get();
             backProp(dpNode, outcome);
             numAsyncsSpawned.decrementAndGet();
           } 
         } else {
-            val outcome:Double = dpNodeResults(dpNodeIdx);
+          val outcome:Double = dpNodeResults(dpNodeIdx).get();
           backProp(dpNode, outcome);
         }
       }
 
       bpTimeElapsed.addAndGet(Timer.nanoTime() - bpStartTime);
+      // Back Propagate End
+
+      pdebugWait("UCTSearch", BP_DETAIL,
+		 printSearchTree());
       
     } // end 'while within resource bound'
 
-
-    Console.OUT.println("On this turn: ");
-    Console.OUT.println("nodes processed: " + nodesProcessed.get());
-    Console.OUT.println("time elapsed: " + (Timer.nanoTime() - startTime));
-
     totalNodesProcessed.getAndAdd(nodesProcessed.get());
     totalTimeElapsed.getAndAdd(Timer.nanoTime() - startTime);
+    val bestChild:MCTNode = getBestChild(0);
+    
+    pdebug("UCTSearch", UCT_DETAIL,
+	   "nodes processed: " + nodesProcessed.get() + "\n" +
+	   "time elapsed: " + (Timer.nanoTime() - startTime) + "\n");
+    pdebug("UCTSearch", UCT_DETAIL,
+	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
+	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
+    pdebugWait("UCTSearch", UCT_DETAIL,
+	       printSearchTree());
+    pdebugWait("UCTSearch", UCT_DETAIL,
+	       "Move selected: " + printNode(bestChild));
 
-
-    // Console.OUT.println("GAME TO NOW total nodes processed: " +
-    //                     totalNodesProcessed.get());
-    // Console.OUT.println("GAME TO NOW total computing time elapsed: " +
-    //                     totalTimeElapsed.get());
     nodesProcessed.set(0);
-
-    var bestChild:MCTNode = getBestChild(0);
-
     return bestChild;
   }
     
@@ -416,17 +422,29 @@ public class MCTNode {
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
-      // Console.OUT.println("[backProp] old timesVisited: " + currNode.timesVisited.get());
-      // Console.OUT.println("[backProp] old aggReward: " + currNode.aggReward.get());
+
+      pdebug("backProp", BP_DETAIL, 
+	     currNode.hashCode() + ": old timesVisited was " + 
+	     currNode.timesVisited.get());
+      pdebug("backProp", BP_DETAIL, 
+	     currNode.hashCode() + ": old aggReward was " + 
+	     currNode.aggReward.get());
+
       currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
                                                      // MAX_DP_PATHS parallel default policies
+
       // TODO: fix this magic Stone.BLACK, like at leafValue()
       if (currNode.turn == Stone.WHITE)
         currNode.aggReward.addAndGet(reward);
       else
         currNode.aggReward.addAndGet(-1 * reward);
-      // Console.OUT.println("[backProp] new timesVisited: " + currNode.timesVisited.get());
-      // Console.OUT.println("[backProp] new aggReward: " + currNode.aggReward.get());
+
+      pdebug("backProp", BP_DETAIL, 
+	     currNode.hashCode() + ": new timesVisited is " + 
+	     currNode.timesVisited.get());
+      pdebug("backProp", BP_DETAIL, 
+	     currNode.hashCode() + ": new aggReward is " + 
+	     currNode.aggReward.get());
 
       // if (reward == 1.0) {
         // Console.OUT.println("[backProp] found a winning move.");
@@ -520,4 +538,94 @@ public class MCTNode {
   public def setPass(val b:Boolean):void {
     pass = b;
   }
+
+
+
+  private def pdebug(val prefix:String, val flag:Int, val msg:String):Boolean {
+    if (((DEBUG_MODE & flag) > 0) || flag == 0) {
+      Console.OUT.println();
+      Console.OUT.println("["+prefix+"] - "+ msg);
+      return true;
+    }
+    return false;
+  }
+
+  private def pdebugWait(val prefix:String, val flag:Int, val msg:String) {
+    if (pdebug(prefix, flag, msg)) {
+      Console.OUT.println("\nHit [Enter] to continue");
+      Console.IN.readLine();
+      Console.OUT.println("\nProceeding");
+    }
+  }
+
+  private def printSearchTree():String {
+
+    val sb = new StringBuilder();    
+    depthFirstTraverse(this, 0, sb);
+    return ("\tSearch Tree: \n" + 
+	    "\t---------------------------------------------------------\n" +
+	    sb.result());
+  }
+
+  private def depthFirstTraverse(val start:MCTNode, val indent:Int,
+				 val sb:StringBuilder):void {
+    for (i in 0..indent) {
+      sb.add("\t");
+    }
+    sb.add(printNode(start));
+    if (start.children != null) {
+      for (child in start.children) {
+	sb.add("\n");
+	depthFirstTraverse(child, indent + 1, sb);
+      }
+    }
+  }
+
+  private def printTPResults(val nodes:ArrayList[MCTNode]):String {
+    val sb = new StringBuilder();
+    sb.add("\t[");
+    
+    for (node in nodes) {
+      sb.add(printNode(node));
+      sb.add(" (parent: " + printNode(node.parent) + "),\n\t");
+    }
+
+    sb.add("]");
+    return sb.result();
+  }
+
+  private def printDPResults(val nodes:ArrayList[MCTNode],
+			    val results:Array[AtomicDouble]):String {
+    val sb = new StringBuilder();
+    sb.add("Nodes \n\t[");
+    
+    for (node in nodes) {
+      sb.add(printNode(node) + ",\n\t");      
+    }
+
+    sb.add("]\n");
+    sb.add("Scores \n\t[");
+    
+    for (result in results.values()) {
+      sb.add(result + ",\n\t");
+    }
+
+    sb.add("]\n");
+    return sb.result();
+  }
+
+  private def printNode(val node:MCTNode):String{
+    return ("<" + node.hashCode() + 
+	    " Reward=" + node.aggReward.get() + 
+	    " Visited=" + node.timesVisited.get() + ">");
+  }
+    // Console.OUT.println("[tree policy] finished, yielding boards: ");
+    //for(var i:Int = 0; i < dpNodes.size(); i++) {
+    // Console.OUT.println("[tree policy] board: ");
+    // Console.OUT.println(dpNodes(i).getBoardState().print());
+    // Console.OUT.println("[tree policy] its unexplored moves: " + dpNodes(i).unexploredMoves.size());
+    // Console.OUT.println("[tree policy] turn: " + dpNodes(i).turn);
+    //}
+
+
 }

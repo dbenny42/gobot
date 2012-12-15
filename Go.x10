@@ -156,7 +156,7 @@ public class Go {
    * When a tie occurs, returns 0.
    */
 
-  public static def zeroPlayerGame(gameTree:MCTNode):Int {
+  public static def zeroPlayerGame(gameTree:MCTNode) {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
@@ -279,9 +279,9 @@ public class Go {
       singlePlayerGame(humanStone, gameTree, HEIGHT, WIDTH);
     }
     else if(NUMHUMANS == 2) {
-      return twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
+      twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
     } else if(NUMHUMANS == 0) {
-      return zeroPlayerGame(gameTree);
+      zeroPlayerGame(gameTree);
     } else {
       Console.OUT.println("invalid argument for number of humans.");
     }
