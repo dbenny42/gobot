@@ -3,8 +3,12 @@
 import x10.io.Console;
 import x10.util.HashSet;
 import x10.lang.Boolean;
+import x10.util.concurrent.AtomicInteger;
+import x10.util.concurrent.AtomicLong;
 
 public class Go {
+
+  public static val numTurns:AtomicInteger = new AtomicInteger(0);
   
   public static def parseMove(move:String, height:Int, width:Int):Int {
 
@@ -154,7 +158,7 @@ public class Go {
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
 
     while(!currNode.gameIsOver()) {
-      Console.OUT.println(currNode.getBoardState().print());
+      //Console.OUT.println(currNode.getBoardState().print());
       if(toMove == Stone.BLACK) {
         currNode = computerTurn(currNode, positionsSeen, toMove);
       } else {
@@ -166,8 +170,20 @@ public class Go {
       positionsSeen.add(currNode.getBoardState().hashCode());
 
       toMove = changeToMove(toMove);
-
+      numTurns.addAndGet(1);
     } // end game
+
+
+    // print statistics
+    Console.OUT.println("avg tp time: " + ((currNode.tpTimeElapsed.get() as Double) / numTurns.get()));
+    Console.OUT.println("avg dp time: " + ((currNode.dpTimeElapsed.get() as Double) / numTurns.get()));
+    Console.OUT.println("avg bp time: " + ((currNode.bpTimeElapsed.get() as Double) / numTurns.get()));
+
+    Console.OUT.println("nodes processed: " + currNode.totalNodesProcessed.get());
+    Console.OUT.println("total time elapsed: " + currNode.totalTimeElapsed.get());
+    Console.OUT.println("time elapsed per node processed: " + ((currNode.totalTimeElapsed.get() as Double) / currNode.totalNodesProcessed.get()));
+
+
 
     printWinner(currNode);
   }

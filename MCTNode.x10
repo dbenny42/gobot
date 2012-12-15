@@ -41,11 +41,16 @@ public class MCTNode {
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
+  private static val MAX_NODES_PROCESSED:Int = 100000;
 
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
-  private static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
-  private static val totalTimeElapsed:AtomicLong = new AtomicLong(0);
+  public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
+  public static val totalTimeElapsed:AtomicLong = new AtomicLong(0);
+  public static val dpTimeElapsed:AtomicLong = new AtomicLong(0);
+  public static val bpTimeElapsed:AtomicLong = new AtomicLong(0);
+  public static val tpTimeElapsed:AtomicLong = new AtomicLong(0);
+
 
   // constructors
 
@@ -68,6 +73,12 @@ public class MCTNode {
     this.pass = pass;
     this.children = new ArrayList[MCTNode]();
     this.unexploredMoves = state.listOfEmptyIdxs();
+    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
+    // Console.OUT.println("[this] Stones of the new state: ");
+    // for (var i:Int = 0; i < this.state.getSize(); i++) {
+    //   Console.OUT.println("[this] idx: " + i + ", " + this.state.stoneAt(i));
+    // }
+    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
     this.expanded = false;
    }
 
@@ -101,45 +112,65 @@ public class MCTNode {
 
 
   public def getBestChild(val c:Double):MCTNode {
+    // Console.OUT.println("[getBestChild] entering fn.");
     var bestVal:Double = Double.NEGATIVE_INFINITY;
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < children.size(); i++) {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
+      // Console.OUT.println("[getBestChild] times explored: " + currChild.timesVisited);
+      // Console.OUT.println("[getBestChild] aggReward: " + currChild.aggReward);
 
+      // Console.OUT.println("[getBestChild] current option: " + currVal);
+
+      if (c == 0.0) {
+        // Console.OUT.println("[getBestChild] board: ");
+        // Console.OUT.println(currChild.getBoardState().print());
+      }
       if(currVal > bestVal) {
+        // Console.OUT.println("[getBestChild] new best val: " + currVal);
         bestVal = currVal;
         bestValArg = currChild;
       }
 
     }
+    // Console.OUT.println("[getBestChild] returning best child with value: " + bestVal);
     return bestValArg;
   }
 
-  public def withinResourceBound(numDefaultPolicies:AtomicInteger,
-				 bound:Int):Boolean{
-    return numDefaultPolicies.get() < bound;
+
+  public def withinResourceBound(nodesProcessed:AtomicInteger,
+        			 bound:Int):Boolean{
+    return nodesProcessed.get() < bound;
   }
 
-  public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode{
+
+  // public def withinResourceBound(numDefaultPolicies:AtomicInteger,
+  //       			 bound:Int):Boolean{
+  //   return numDefaultPolicies.get() < bound;
+  // }
+
+  public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode {
 
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
-
+    // Console.OUT.println("max default policies: " + MAX_DEFAULT_POLICIES);
+    // Console.OUT.println("max_dp_paths: " + MAX_DP_PATHS);
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
     val defaultPolicyDepth:Int = (state.getSize() / 
 				  this.unexploredMoves.size()) * 30;
 
 
-    val startTime:Long = Timer.milliTime();
+    val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
 
-
-    while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
-
+    //while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
+    while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
+      val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
+
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -147,102 +178,128 @@ public class MCTNode {
 	  dpNodes.add(child);
       }
 
-      val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
-      val d:Dist = Dist.makeBlock(dpNodeRegion, 0);
-      val da:DistArray[Double] =
-        DistArray.make[Double](Dist.makeBlock(dpNodeRegion, 0));
-
-      finish for (dpNodeIdx in dpNodeRegion) {
-	val dpNode = dpNodes.get(dpNodeIdx(0));
-
-        val currBoardState:BoardState = dpNode.state;
-	at (da.dist(dpNodeIdx(0))) {
-	  async {
-
-            // inlined default policy:
-
-            val dp_value_total = new AtomicDouble(0.0);
-
-            val start:Long = Timer.milliTime();
-            finish {
-              for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
-                async {
-                  var currNode:MCTNode = new MCTNode(currBoardState);
-                  var tempNode:MCTNode;
-                  var currDepth:Int = 0;
-                  val randomGameMoves:HashSet[Int] = positionsSeen.clone();
-                  randomGameMoves.add(currNode.state.hashCode());
-
-                  while(currNode != null && !currNode.isLeaf() &&
-                        currDepth < defaultPolicyDepth) {
-                    nodesProcessed.incrementAndGet();
-                    tempNode = currNode.generateChildNoModify(randomGameMoves);
-                    if(tempNode != null) {
-                      currNode = tempNode;
-                      randomGameMoves.add(currNode.state.hashCode());
-                    }
-                    currDepth++;
-                  }
-
-                  dp_value_total.getAndAdd(currNode.leafValue());
-                }
-              }
-            }
-            timeElapsed.getAndAdd(Timer.milliTime() - start);
-
-            da(dpNodeIdx(0)) = dp_value_total.get();
-
-	  }
-	}
+      tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
+      // Console.OUT.println("[tree policy] finished, yielding boards: ");
+      for(var i:Int = 0; i < dpNodes.size(); i++) {
+        // Console.OUT.println("[tree policy] board: ");
+        // Console.OUT.println(dpNodes(i).getBoardState().print());
+        // Console.OUT.println("[tree policy] its unexplored moves: " + dpNodes(i).unexploredMoves.size());
+        // Console.OUT.println("[tree policy] turn: " + dpNodes(i).turn);
       }
 
-      // Console.OUT.println("Here's the distarray: ");
-      // for(dpNodeIdx in dpNodeRegion) {
-      //   at(da.dist(dpNodeIdx(0))) {
-      //     Console.OUT.print(da(dpNodeIdx(0)) + ", ");
-      //   }
-      // }
-      // Console.OUT.println();
-
-
-
-      numDefaultPolicies.incrementAndGet();
-
-
-
+      val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
+      val dpNodeResults:Array[Double] = new Array[Double](dpNodes.size());
+      val dpStartTime = Timer.nanoTime();
       finish for (dpNodeIdx in dpNodeRegion) {
 	val dpNode = dpNodes.get(dpNodeIdx(0));
+
+        // Console.OUT.println("[default policy] BEFORE assignment of currBoardState.");
+        for (var j:Int = 0; j < dpNode.state.getSize(); j++) {
+          Stone.canPlaceOn(dpNode.state.stoneAt(j));
+        }
+
+        val currBoardState:BoardState = dpNode.state;
+
+        // Console.OUT.println("[default policy] AFTER assignment of currBoardState.");
+        for (var j:Int = 0; j < currBoardState.getSize(); j++) {
+          Stone.canPlaceOn(currBoardState.stoneAt(j));
+        }
+
+
+        // TODO: the issue is the at.  it appears to be changing the values.
+        // inlined default policy:
+
+        val dp_value_total = new AtomicDouble(0.0);
+
+        finish {
+          for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
+            async {
+              // Console.OUT.println("[default policy] BEFORE copy the currNode.");
+              for (var j:Int = 0; j < currBoardState.getSize(); j++) {
+                Stone.canPlaceOn(currBoardState.stoneAt(j));
+              }
+              var currNode:MCTNode = new MCTNode(this, currBoardState);
+              // Console.OUT.println("[default policy] AFTER copy the currNode.");
+              for (var j:Int = 0; j < currNode.state.getSize(); j++) {
+                Stone.canPlaceOn(currNode.state.stoneAt(j));
+              }
+              // Console.OUT.println("[default policy] node we're running on:");
+              // Console.OUT.println("[default policy] currNode.turn: " + currNode.turn);
+              // Console.OUT.println(currNode.getBoardState().print());
+              var tempNode:MCTNode;
+              var currDepth:Int = 0;
+              val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+              randomGameMoves.add(currNode.state.hashCode());
+
+              while(currNode != null && !currNode.isLeaf() &&
+                    currDepth < defaultPolicyDepth) {
+                nodesProcessed.incrementAndGet();
+                // Console.OUT.println("[default policy] unexplored moves: " + currNode.unexploredMoves.size());
+                tempNode = currNode.generateChildNoModify(randomGameMoves);
+                // Console.OUT.println("[default policy] random child:");
+
+                // Console.OUT.println(tempNode.getBoardState().print());
+                if(tempNode != null) {
+                  // Console.OUT.println("[default policy] non-null; adding it to the random game.");
+                  currNode = tempNode;
+                  randomGameMoves.add(currNode.state.hashCode());
+                }
+                currDepth++;
+              }
+              // Console.OUT.println("[default policy] yielding on this board: ");
+              // Console.OUT.println(currNode.getBoardState().print());
+              // Console.OUT.println("the leaf value of this board is " + currNode.leafValue());
+
+              // TODO: this is the minimax error.
+              dp_value_total.getAndAdd(currNode.leafValue());
+            }
+          }
+        }
+
+        dpNodeResults(dpNodeIdx(0)) = dp_value_total.get();
+
+        // TODO: we do more than one default policy.  figure out how many to
+        // increment this by.
+        numDefaultPolicies.getAndAdd(MAX_DP_PATHS);
+      }
+
+      dpTimeElapsed.addAndGet(Timer.nanoTime() - dpStartTime);
+
+
+      val bpStartTime = Timer.nanoTime();
+      finish for (dpNodeIdx in dpNodeRegion) {
+	val dpNode = dpNodes(dpNodeIdx(0));
         if(numAsyncsSpawned.get() < MAX_ASYNCS) {
           numAsyncsSpawned.incrementAndGet();
           async {
-            val outcome:Double =
-              at(da.dist(dpNodeIdx(0)))
-                da(dpNodeIdx(0));
+            val outcome:Double = dpNodeResults(dpNodeIdx);
             backProp(dpNode, outcome);
             numAsyncsSpawned.decrementAndGet();
           } 
         } else {
-            val outcome:Double =
-              at(da.dist(dpNodeIdx(0)))
-                da(dpNodeIdx(0));
-            backProp(dpNode, outcome);
+            val outcome:Double = dpNodeResults(dpNodeIdx);
+          backProp(dpNode, outcome);
         }
       }
 
+      bpTimeElapsed.addAndGet(Timer.nanoTime() - bpStartTime);
+      
     } // end 'while within resource bound'
 
 
-    Console.OUT.println("On this turn: ");
-    Console.OUT.println("nodes processed: " + nodesProcessed.get());
-    Console.OUT.println("time elapsed: " + timeElapsed.get());
+    // Console.OUT.println("On this turn: ");
+    // Console.OUT.println("nodes processed: " + nodesProcessed.get());
+    // Console.OUT.println("time elapsed: " + (Timer.nanoTime() - startTime));
 
     totalNodesProcessed.getAndAdd(nodesProcessed.get());
-    totalTimeElapsed.getAndAdd(timeElapsed.get());
+    totalTimeElapsed.getAndAdd(Timer.nanoTime() - startTime);
 
-    Console.OUT.println("total nodes processed: " + totalNodesProcessed.get());
-    Console.OUT.println("total time elapsed: " + totalTimeElapsed.get());
+
+    // Console.OUT.println("GAME TO NOW total nodes processed: " +
+    //                     totalNodesProcessed.get());
+    // Console.OUT.println("GAME TO NOW total computing time elapsed: " +
+    //                     totalTimeElapsed.get());
     nodesProcessed.set(0);
-    timeElapsed.set(0);
 
     var bestChild:MCTNode = getBestChild(0);
 
@@ -261,12 +318,14 @@ public class MCTNode {
       } else {
         // recursive descent through the tree, best choice at each step:
 	val bc = getBestChild(EXPLORE_PARAM);
-
+        return bc;
 	// Remember to add this node to the new list of positions seen
-	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
-	newPositionsSeen.add(this.state.hashCode());
 
-        return bc.treePolicy(newPositionsSeen);
+        // TODO: add recursive descent back in.
+	// val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
+	// newPositionsSeen.add(this.state.hashCode());
+
+        // return bc.treePolicy(newPositionsSeen);
       }
     } else {
       children.add(child);
@@ -277,14 +336,20 @@ public class MCTNode {
 
   public def generateChildNoModify(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
-
+    // Console.OUT.println("[generateChildNoModify] inside fn.");
     val possibleMoves = unexploredMoves.clone();
+    // Console.OUT.println("[generateChildNoModify] unexplored moves left: " + unexploredMoves.size());
+    // Console.OUT.println("[generateChildNoModify] current turn: " + this.turn);
     while(!possibleMoves.isEmpty()) {
       var randIdx:Int;
       var possibleState:BoardState = null;
 
+      // TODO: should this be possibleMoves?
+      // if it should be, this check is redundant:
       if (unexploredMoves.size() > 0) {
 	randIdx = rand.nextInt(possibleMoves.size());
+        // Console.OUT.println("[generateChildNoModify] randIdx is " + randIdx);
+        // Console.OUT.println("[generateChildNoModify] possibleMoves(randIdx) is " + possibleMoves(randIdx));
 	possibleState = state.doMove(possibleMoves(randIdx), turn);
 	possibleMoves.removeAt(randIdx);
       }
@@ -292,6 +357,7 @@ public class MCTNode {
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
       if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
+        // Console.OUT.println("found a valid move with randidx");
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
@@ -332,9 +398,12 @@ public class MCTNode {
 
 
   public def leafValue():Double {
-    if (state.currentLeader() == turn)
+    // Console.OUT.println("the current leader is " + state.currentLeader());
+    //if (state.currentLeader() == turn)
+    if (state.currentLeader() == Stone.BLACK)
       return 1.0;
-    else if (state.currentLeader() == Stone.getOpponentOf(turn))
+    //else if (state.currentLeader() == Stone.getOpponentOf(turn))
+    else if (state.currentLeader() == Stone.WHITE)
       return 0.0;
     else
       return 0.5;
@@ -344,9 +413,17 @@ public class MCTNode {
   // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
+      // Console.OUT.println("[backProp] old timesVisited: " + currNode.timesVisited.get());
+      // Console.OUT.println("[backProp] old aggReward: " + currNode.aggReward.get());
       currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
                                                      // MAX_DP_PATHS parallel default policies
       currNode.aggReward.addAndGet(reward);
+      // Console.OUT.println("[backProp] new timesVisited: " + currNode.timesVisited.get());
+      // Console.OUT.println("[backProp] new aggReward: " + currNode.aggReward.get());
+
+      if (reward == 1.0) {
+        // Console.OUT.println("[backProp] found a winning move.");
+      }
       currNode = currNode.parent;
     }
   }

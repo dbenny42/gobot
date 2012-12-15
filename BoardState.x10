@@ -165,9 +165,11 @@ public class BoardState {
   public def listOfEmptyIdxs():ArrayList[Int] {
     val spots:ArrayList[Int] = new ArrayList[Int]();
     for (var idx:Int = 0; idx < this.stones.size; idx++) {
+      // Console.OUT.println("[listOfEmptyIdxs] idx: " + idx + " stone: " + this.stones(idx));
       if (Stone.canPlaceOn(this.stones(idx)))
 	spots.add(idx);
     }
+    // Console.OUT.println("[listOfEmptyIdxs] the length is: " + spots.size());
     return spots;
   }
 
@@ -389,7 +391,7 @@ public class BoardState {
     val row = p.first;
     val col = p.second;
 
-    // Make sure we're not trying to push an emtpy stone
+    // Make sure we're not trying to push an empty stone
     if (Stone.canPlaceOn(stone))
       return null;
     
