@@ -4,10 +4,8 @@ import x10.util.Pair;
 import x10.util.ArrayList;
 import x10.util.Stack;
 
-public struct BoardState {
+public class BoardState {
 
-
-  public static val NONE = new BoardState();
 
   private val HASH_NUM_WIDTH:Int = 20;
   private val HASH_NUM_BASE:Int = 3;
@@ -21,8 +19,8 @@ public struct BoardState {
   private val stones:Array[Stone];
   private val chains:Array[Chain];
 
-  private val whiteScore:Int;
-  private val blackScore:Int;
+  private var whiteScore:Int;
+  private var blackScore:Int;
 
 
   // private var hash:Int;
@@ -84,6 +82,8 @@ public struct BoardState {
     this.whiteScore = 0;
     this.blackScore = 0;
   }
+
+  public static val NONE = new BoardState();
 
   // assumes equal height and width
   /*

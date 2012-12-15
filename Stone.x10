@@ -1,4 +1,5 @@
 public struct Stone {
+
   private val repr:Int;
   private val token:Char;
   private val desc:String;
@@ -17,7 +18,7 @@ public struct Stone {
   public static val BLACK = Stone(1, 'O', "black");
   public static val WHITE = Stone(2, '@', "white");
   public static val TERR_B = Stone(3, '\"', "black territory");
-  public static val TERR_W = Stone(4, '\'', "white terriroty");
+  public static val TERR_W = Stone(4, '\'', "white territory");
   public static val INVALID = Stone(-1, '?', "invalid");
 
   public static def canPlaceOn(s:Stone):Boolean {

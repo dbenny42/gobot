@@ -41,9 +41,6 @@ public class MCTNode {
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
-  // TODO: update formula, change number of default policies we want to
-  // target at each place.  Magic # here is 50 dps.
-
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
   public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
@@ -151,6 +148,7 @@ public class MCTNode {
    */
   
   public def withinResourceBound(nodesProcessed:AtomicInteger):Boolean {
+    // TODO: fix this formula / magic number / etc.
     val nodesProcessedBound = 10;//50 * 1.1 * this.state.getSize() * this.state.getSize();
     Console.OUT.println("[withinResourceBound] checking nodesProcessed: " + nodesProcessed.get());
     return nodesProcessed.get() < nodesProcessedBound;
@@ -222,9 +220,6 @@ public class MCTNode {
           Stone.canPlaceOn(currBoardState.stoneAt(j));
         }
 
-
-        // TODO: the issue is the at.  it appears to be changing the values.
-        // inlined default policy:
 
         val dpValueTotal = new AtomicDouble(0.0);
 
@@ -332,7 +327,6 @@ public class MCTNode {
 
 	// Remember to add this node to the new list of positions seen
 
-        // TODO: add recursive descent back in.
 	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
 	newPositionsSeen.add(this.state.hashCode());
 

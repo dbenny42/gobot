@@ -8,8 +8,7 @@ public struct Chain {
   private val adjacencies:HashSet[Int];
   private val liberties:HashSet[Int];
 
-  public static val NONE = new Chain(); 
-  
+  public static val NONE = Chain();
 
   /**
    * Constructs a new Chain from a singleton stone. Performs no merging.
