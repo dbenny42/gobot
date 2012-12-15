@@ -150,9 +150,13 @@ public class Go {
    *
    * For now, the good AI will always play as black, the moron AI will
    * always play as white.
+   *
+   * When the good AI wins, returns 1.
+   * When the idiot bot wins, returns -1.
+   * When a tie occurs, returns 0.
    */
 
-  public static def zeroPlayerGame(gameTree:MCTNode) {
+  public static def zeroPlayerGame(gameTree:MCTNode):Int {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
@@ -275,9 +279,9 @@ public class Go {
       singlePlayerGame(humanStone, gameTree, HEIGHT, WIDTH);
     }
     else if(NUMHUMANS == 2) {
-      twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
+      return twoPlayerGame(gameTree, positionsSeen, HEIGHT, WIDTH);
     } else if(NUMHUMANS == 0) {
-      zeroPlayerGame(gameTree);
+      return zeroPlayerGame(gameTree);
     } else {
       Console.OUT.println("invalid argument for number of humans.");
     }

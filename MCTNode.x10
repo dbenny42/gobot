@@ -180,12 +180,12 @@ public class MCTNode {
 
       tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
       // Console.OUT.println("[tree policy] finished, yielding boards: ");
-      for(var i:Int = 0; i < dpNodes.size(); i++) {
+      //for(var i:Int = 0; i < dpNodes.size(); i++) {
         // Console.OUT.println("[tree policy] board: ");
         // Console.OUT.println(dpNodes(i).getBoardState().print());
         // Console.OUT.println("[tree policy] its unexplored moves: " + dpNodes(i).unexploredMoves.size());
         // Console.OUT.println("[tree policy] turn: " + dpNodes(i).turn);
-      }
+      //}
 
       val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
       val dpNodeResults:Array[Double] = new Array[Double](dpNodes.size());
@@ -209,7 +209,7 @@ public class MCTNode {
         // TODO: the issue is the at.  it appears to be changing the values.
         // inlined default policy:
 
-        val dp_value_total = new AtomicDouble(0.0);
+        val dpValueTotal = new AtomicDouble(0.0);
 
         finish {
           for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
@@ -251,16 +251,16 @@ public class MCTNode {
               // Console.OUT.println("the leaf value of this board is " + currNode.leafValue());
 
               // TODO: this is the minimax error.
-              dp_value_total.getAndAdd(currNode.leafValue());
+              dpValueTotal.getAndAdd(currNode.leafValue());
             }
           }
         }
 
-        dpNodeResults(dpNodeIdx(0)) = dp_value_total.get();
+        dpNodeResults(dpNodeIdx(0)) = dpValueTotal.get();
 
         // TODO: we do more than one default policy.  figure out how many to
         // increment this by.
-        numDefaultPolicies.getAndAdd(MAX_DP_PATHS);
+        numDefaultPolicies.getAndAdd(1);
       }
 
       dpTimeElapsed.addAndGet(Timer.nanoTime() - dpStartTime);
@@ -287,9 +287,9 @@ public class MCTNode {
     } // end 'while within resource bound'
 
 
-    // Console.OUT.println("On this turn: ");
-    // Console.OUT.println("nodes processed: " + nodesProcessed.get());
-    // Console.OUT.println("time elapsed: " + (Timer.nanoTime() - startTime));
+    Console.OUT.println("On this turn: ");
+    Console.OUT.println("nodes processed: " + nodesProcessed.get());
+    Console.OUT.println("time elapsed: " + (Timer.nanoTime() - startTime));
 
     totalNodesProcessed.getAndAdd(nodesProcessed.get());
     totalTimeElapsed.getAndAdd(Timer.nanoTime() - startTime);
@@ -318,14 +318,17 @@ public class MCTNode {
       } else {
         // recursive descent through the tree, best choice at each step:
 	val bc = getBestChild(EXPLORE_PARAM);
-        return bc;
+
+        // uncomment to eliminate recursive descent:
+        //return bc;
+
 	// Remember to add this node to the new list of positions seen
 
         // TODO: add recursive descent back in.
-	// val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
-	// newPositionsSeen.add(this.state.hashCode());
+	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
+	newPositionsSeen.add(this.state.hashCode());
 
-        // return bc.treePolicy(newPositionsSeen);
+        return bc.treePolicy(newPositionsSeen);
       }
     } else {
       children.add(child);
@@ -417,13 +420,17 @@ public class MCTNode {
       // Console.OUT.println("[backProp] old aggReward: " + currNode.aggReward.get());
       currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
                                                      // MAX_DP_PATHS parallel default policies
-      currNode.aggReward.addAndGet(reward);
+      // TODO: fix this magic Stone.BLACK, like at leafValue()
+      if (currNode.turn == Stone.WHITE)
+        currNode.aggReward.addAndGet(reward);
+      else
+        currNode.aggReward.addAndGet(-1 * reward);
       // Console.OUT.println("[backProp] new timesVisited: " + currNode.timesVisited.get());
       // Console.OUT.println("[backProp] new aggReward: " + currNode.aggReward.get());
 
-      if (reward == 1.0) {
+      // if (reward == 1.0) {
         // Console.OUT.println("[backProp] found a winning move.");
-      }
+      // }
       currNode = currNode.parent;
     }
   }
