@@ -57,7 +57,6 @@ public class MCTNode {
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
   // Metric values
-  private static val MAX_NODES_PROCESSED:Int = 100000;
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
   public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
@@ -96,6 +95,18 @@ public class MCTNode {
     // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
     this.expanded = false;
    }
+
+  public def this(toCopy:MCTNode) {
+    this.parent = toCopy.parent;
+    this.timesVisited = new AtomicInteger(toCopy.timesVisited.get());
+    this.aggReward = new AtomicDouble(toCopy.aggReward.get());
+    this.state = toCopy.state;
+    this.turn = toCopy.turn;
+    this.pass = toCopy.pass;
+    this.children = toCopy.children.clone();
+    this.unexploredMoves = toCopy.unexploredMoves.clone();
+  }
+
 
   // methods
   public def computeUcb(val c:Double):Double{
@@ -159,6 +170,11 @@ public class MCTNode {
 
   public def withinResourceBound(nodesProcessed:AtomicInteger,
         			 bound:Int):Boolean{
+    pdebug("withinResourceBound", UCT_DETAIL,
+           "Checking the resource bound.  Nodes Processed: " +
+           nodesProcessed.get() +
+           ", bound: " +
+           bound);
     return nodesProcessed.get() < bound;
   }
 
@@ -169,20 +185,25 @@ public class MCTNode {
   // }
 
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode {
+    Console.OUT.println("x10_nthreads: " + x10Nthreads);
 
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
+    val MAX_NODES_PROCESSED:Int = 10000;
+
+
     // Console.OUT.println("max default policies: " + MAX_DEFAULT_POLICIES);
     // Console.OUT.println("max_dp_paths: " + MAX_DP_PATHS);
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
-    val defaultPolicyDepth:Int = (state.getSize() / 
-				  this.unexploredMoves.size()) * 30;
+    val defaultPolicyDepth:Int = state.getSize() * 2;
+
 
 
     val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
 
     //while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
+    
     while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
@@ -223,7 +244,8 @@ public class MCTNode {
         finish {
           for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
             async {
-              var currNode:MCTNode = new MCTNode(this, currBoardState);
+              var currParent:MCTNode = new MCTNode(dpNode);
+              var currNode:MCTNode = new MCTNode(dpNode);
               var tempNode:MCTNode;
               var currDepth:Int = 0;
               val randomGameMoves:HashSet[Int] = positionsSeen.clone();
@@ -236,10 +258,16 @@ public class MCTNode {
 
 		pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
 		       "GENERATED\n" + tempNode.getBoardState().print());
-		
+
 
                 if(tempNode != null) {
+                  currParent = currNode; // old currNode value is this.
                   currNode = tempNode;
+                  currNode.setParent(currParent);
+		  pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		         "pass value: " + currNode.pass);
+		  pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		         "parent pass value: " + currParent.pass);
                   randomGameMoves.add(currNode.state.hashCode());
                 }
                 currDepth++;
@@ -258,6 +286,9 @@ public class MCTNode {
         // TODO: we do more than one default policy.  figure out how many to
         // increment this by.
         numDefaultPolicies.getAndAdd(1);
+        pdebug("defaultPolicy", DP_DETAIL,
+               "Nodes processed at the end of a default policy: " +
+               nodesProcessed.get());
       }
 
 
@@ -307,9 +338,14 @@ public class MCTNode {
 	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
 	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
     pdebugWait("UCTSearch", UCT_DETAIL,
-	       "AFTER MCTSEARCH:\n" + printSearchTree());
+	       "AFTER UCTSEARCH:\n" + printSearchTree());
     pdebugWait("UCTSearch", UCT_DETAIL,
 	       "Move selected: " + printNode(bestChild));
+    pdebugWait("UCTSearch", UCT_DETAIL,
+               "Board for move selected: \n" +
+               bestChild.state.print());
+               
+               
 
     nodesProcessed.set(0);
     return bestChild;
@@ -354,13 +390,25 @@ public class MCTNode {
 	   "Picking move for " + this.turn.desc() + 
 	   "(" + this.turn.token() + ")");
 
+
+    // when you're opponent has passed and you're winning, you should pass
+    // and win.
+    pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	   "current pass value: " + this.pass +
+	   ", current leader: " + this.state.currentLeader().desc());
+    if (this.pass && (this.state.currentLeader() == this.turn)) {
+      pdebug("dpGenerateChild", DP_ITR_DETAIL,
+             "passing to win during default policy.");
+      return new MCTNode(this, state, true); 
+    }
+
     while(!possibleMoves.isEmpty()) {
       var randIdx:Int;
       var possibleState:BoardState = null;
 
       // TODO: should this be possibleMoves?
       // if it should be, this check is redundant:
-      if (unexploredMoves.size() > 0) {
+      if (possibleMoves.size() > 0) {
 	randIdx = rand.nextInt(possibleMoves.size());
 
 	pdebug("dpGenerateChild", DP_ITR_DETAIL,
@@ -476,10 +524,23 @@ public class MCTNode {
    * Otherwise, the humanMove node that was passed in is returned.
    */
   public def addHumanMoveToOpponentGameTree(val humanMove:BoardState):MCTNode {
+    pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+           "finding this idiot/human board state in the game tree: \n" +
+           humanMove.print());
     val existingNode:MCTNode = findMove(humanMove);
     if(existingNode != null) {
+      pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+             "FOUND, PRINTING ITS CHILDREN");
+
+      for(var i:Int = 0; i < existingNode.children.size(); i++) {
+        pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+               "child( " + i + ")\n" + existingNode.children(i).getBoardState().print());
+      }
+      
       return existingNode;
     } else {
+      pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+             "NOT FOUND.");
       return new MCTNode(this, humanMove); // this constructor sets the parent.
     }
   }
@@ -487,7 +548,10 @@ public class MCTNode {
   // TODO: update children to be a hashset, so this is a constant-time op.
   public def findMove(val stateToFind:BoardState) {
     for(var i:Int = 0; i < children.size(); i++) {
-      if(children(i).equals(stateToFind)) {
+      pdebug("findMove", UCT_DETAIL,
+             "comparing to move: \n" +
+             children(i).getBoardState().print());
+      if(children(i).getBoardState().equals(stateToFind)) {
         return children(i);
       } 
     }
@@ -496,16 +560,18 @@ public class MCTNode {
 
   // TODO: Make sure !validMoveLeft() is still OK
   public def isLeaf():Boolean {
+    pdebug("isLeaf", DP_DETAIL,
+           "isLeafOnPasses(): " + isLeafOnPasses());
     // leaf: no valid moves or two preceding moves were passes    
     return isLeafOnPasses();// || !validMoveLeft();
   }
 
   public def isLeafOnPasses():Boolean {
-    return (parent != null && 
-	    parent.parent != null && 
-	    parent.pass && 
-	    parent.parent.pass);
-  }
+    return (parent != null &&
+            parent.pass &&
+            this.pass);
+  }                                       
+
 
   public def validMoveLeft():Boolean {
     for(var i:Int = 0; i < state.getSize(); i++) {
@@ -542,6 +608,10 @@ public class MCTNode {
 
   public def getParent():MCTNode {
     return parent;
+  }
+
+  public def setParent(mctn:MCTNode):void {
+    this.parent = mctn;
   }
 
   public def getPass():Boolean {
