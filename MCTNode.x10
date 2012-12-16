@@ -99,9 +99,10 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (timesVisited == null || timesVisited.get() == 0) {
+    if (parent == null || timesVisited.get() == 0) {
       return Double.POSITIVE_INFINITY;
     }
+
 
     var ucb:Double = (aggReward.get() / timesVisited.get()) + (2 * c * Math.sqrt((2 * Math.log((parent.timesVisited.get() as Double))) / timesVisited.get()));
     var weight:Double;
@@ -109,7 +110,7 @@ public class MCTNode {
     if(pass) {
       // weight passing, so it's more attractive as the game progresses.
       // if the opponent passed and the computer is winning, it should pass and win
-      if(parent != null && parent.pass && (getMyScore() < getOppScore())) {
+      if(parent.pass && (getMyScore() < getOppScore())) {
         weight = 1000; // computer should automatically win.
       } else {
         weight = (((state.getWhiteScore() as Double) + 
