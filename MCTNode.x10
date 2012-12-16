@@ -99,7 +99,7 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (timesVisited.get() == 0) {
+    if (timesVisited.get() == 0 || timesVisited == null) {
       return Double.POSITIVE_INFINITY;
     }
 
@@ -200,7 +200,7 @@ public class MCTNode {
       pdebugWait("UCTSearch", TP_DETAIL,
 		 "WILL EXPLORE\n" + printTPResults(dpNodes));
       pdebugWait("UCTSearch", TP_DETAIL,
-		 printSearchTree());
+		 "BEFORE DP\n" + printSearchTree());
 
       val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
       val dpNodeResults:Array[AtomicDouble] = (
@@ -220,10 +220,6 @@ public class MCTNode {
           for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
             async {
               var currNode:MCTNode = new MCTNode(this, currBoardState);
-
-	      pdebug("defaultPolicy", DP_DETAIL,
-		     "Start DP for " + printNode(dpNode));
-
               var tempNode:MCTNode;
               var currDepth:Int = 0;
               val randomGameMoves:HashSet[Int] = positionsSeen.clone();
@@ -245,7 +241,6 @@ public class MCTNode {
 
 	      pdebug("defaultPolicy", DP_DETAIL,
 		     "Done with DP for " + printNode(dpNode) + "\n" +
-		     "Result is " + printNode(currNode) + "\n" +
 		     "Leaf value is " + currNode.leafValue());
 
               // TODO: this is the minimax error.
@@ -266,7 +261,7 @@ public class MCTNode {
       pdebugWait("UCTSearch", DP_DETAIL,
 		 "RESULTS:\n" + printDPResults(dpNodes, dpNodeResults));
       pdebugWait("UCTSearch", DP_DETAIL,
-		 printSearchTree());
+		 "BEFORE BACKPROP:\n" + printSearchTree());
 
       // Back Propagate Start
       val bpStartTime = Timer.nanoTime();
@@ -289,7 +284,7 @@ public class MCTNode {
       // Back Propagate End
 
       pdebugWait("UCTSearch", BP_DETAIL,
-		 printSearchTree());
+		 "AFTER BACKPROP:\n" + printSearchTree());
       
     } // end 'while within resource bound'
 
@@ -304,7 +299,7 @@ public class MCTNode {
 	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
 	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
     pdebugWait("UCTSearch", UCT_DETAIL,
-	       printSearchTree());
+	       "AFTER MCTSEARCH:\n" + printSearchTree());
     pdebugWait("UCTSearch", UCT_DETAIL,
 	       "Move selected: " + printNode(bestChild));
 
@@ -617,7 +612,9 @@ public class MCTNode {
   private def printNode(val node:MCTNode):String{
     return ("<" + node.hashCode() + 
 	    " Reward=" + node.aggReward.get() + 
-	    " Visited=" + node.timesVisited.get() + ">");
+	    " Visited=" + node.timesVisited.get() + 
+	    " UCB_ex=" + node.computeUcb(EXPLORE_PARAM) + 
+	    " UCB_de=" + node.computeUcb(0) + ">");
   }
     // Console.OUT.println("[tree policy] finished, yielding boards: ");
     //for(var i:Int = 0; i < dpNodes.size(); i++) {
