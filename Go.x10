@@ -30,13 +30,13 @@ public class Go {
 
   public static def printWinner(var currNode:MCTNode):Stone {
     if(currNode.getBoardState().currentLeader() == Stone.WHITE) {
-      Console.OUT.println("White wins.  Black should go think about what a horrible Go player (s)he is.");
+      Console.OUT.println("WHITE WINS!");
       return Stone.WHITE;
     } else if (currNode.getBoardState().currentLeader() == Stone.BLACK) {
-      Console.OUT.println("Black wins.  White should go die in a hole, as everyone wishes him/her to.");
+      Console.OUT.println("BLACK WINS.");
       return Stone.BLACK;
     } else {
-      Console.OUT.println("It was a tie.  Go think about the choices you've made in your pathetic life.");
+      Console.OUT.println("IT WAS A TIE.  Everybody can feel reasonably good about that.");
       return Stone.EMPTY;
     }
   }
