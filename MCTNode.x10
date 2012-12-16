@@ -99,7 +99,7 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (timesVisited.get() == 0 || timesVisited == null) {
+    if (timesVisited == null || timesVisited.get() == 0) {
       return Double.POSITIVE_INFINITY;
     }
 
