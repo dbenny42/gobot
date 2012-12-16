@@ -1,7 +1,7 @@
 import x10.util.HashSet;
 import x10.util.StringBuilder;
 
-public struct Chain {
+public class Chain {
 
   private val stone:Stone;
   private val members:HashSet[Int];

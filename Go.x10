@@ -28,16 +28,15 @@ public class Go {
     return (toMove == Stone.BLACK) ? Stone.WHITE : Stone.BLACK;
   }
 
-  // optionally, pay attention to the return type.
   public static def printWinner(var currNode:MCTNode):Stone {
     if(currNode.getBoardState().currentLeader() == Stone.WHITE) {
-      Console.OUT.println("White wins.  Black should go think about what a horrible Go player (s)he is.");
+      Console.OUT.println("WHITE WINS!");
       return Stone.WHITE;
     } else if (currNode.getBoardState().currentLeader() == Stone.BLACK) {
-      Console.OUT.println("Black wins.  White should go die in a hole, as everyone wishes him/her to.");
+      Console.OUT.println("BLACK WINS.");
       return Stone.BLACK;
     } else {
-      Console.OUT.println("It was a tie.  Go think about the choices you've made in your pathetic life.");
+      Console.OUT.println("IT WAS A TIE.  Everybody can feel reasonably good about that.");
       return Stone.EMPTY;
     }
   }
@@ -48,7 +47,7 @@ public class Go {
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
-      nodeToAdd = currNode.generateChildNoModify(positionsSeen);
+      nodeToAdd = currNode.dpGenerateChild(positionsSeen);
     }
 
     currNode = currNode.addHumanMoveToOpponentGameTree(nodeToAdd.getBoardState());
@@ -160,7 +159,7 @@ public class Go {
    * When a tie occurs, returns 0.
    */
 
-  public static def zeroPlayerGame(gameTree:MCTNode):Int {
+  public static def zeroPlayerGame(gameTree:MCTNode) {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
@@ -194,13 +193,13 @@ public class Go {
 
 
     val winner:Stone = printWinner(currNode);
-    // this is for the test harness.
-    if (winner == Stone.BLACK)
+    if (winner == Stone.BLACK) {
       return 1;
-    else if (winner == Stone.WHITE)
+    } else if (winner == Stone.WHITE) {
       return -1;
-    else
+    } else {
       return 0; // tie.
+    }
   }
 
 
