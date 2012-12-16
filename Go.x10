@@ -44,7 +44,7 @@ public class Go {
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
-      nodeToAdd = currNode.generateChildNoModify(positionsSeen);
+      nodeToAdd = currNode.dpGenerateChild(positionsSeen);
     }
 
     currNode = currNode.addHumanMoveToOpponentGameTree(nodeToAdd.getBoardState());

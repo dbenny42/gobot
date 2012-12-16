@@ -10,6 +10,7 @@ import x10.util.HashSet;
 import x10.util.concurrent.AtomicDouble;
 import x10.util.concurrent.AtomicInteger;
 import x10.util.concurrent.AtomicLong;
+import x10.util.concurrent.AtomicBoolean;
 
 public class MCTNode {
 
@@ -40,8 +41,10 @@ public class MCTNode {
   private static val DP_DETAIL = 1<<2;
   private static val BP_DETAIL = 1<<3;
   private static val TP_ITR_DETAIL = 1<<4;
-  private static val GBC_DETAIL = 1<<5;
+  private static val DP_ITR_DETAIL = 1<<5;
+  private static val GBC_DETAIL = 1<<6;
   private static val BOARD_DETAIL = 1<<10;
+  private static val skipWait = new AtomicBoolean(false);
 
   // Parallelism controls
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
@@ -229,10 +232,12 @@ public class MCTNode {
               while(currNode != null && !currNode.isLeaf() &&
                     currDepth < defaultPolicyDepth) {
                 nodesProcessed.incrementAndGet();
-                tempNode = currNode.generateChildNoModify(randomGameMoves);
-                // Console.OUT.println("[default policy] random child:");
+                tempNode = currNode.dpGenerateChild(randomGameMoves);
 
-                // Console.OUT.println(tempNode.getBoardState().print());
+		pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		       "GENERATED\n" + tempNode.getBoardState().print());
+		
+
                 if(tempNode != null) {
                   currNode = tempNode;
                   randomGameMoves.add(currNode.state.hashCode());
@@ -292,6 +297,8 @@ public class MCTNode {
     totalNodesProcessed.getAndAdd(nodesProcessed.get());
     totalTimeElapsed.getAndAdd(Timer.nanoTime() - startTime);
     val bestChild:MCTNode = getBestChild(0);
+
+    skipWait.getAndSet(false);
     
     pdebug("UCTSearch", UCT_DETAIL,
 	   "nodes processed: " + nodesProcessed.get() + "\n" +
@@ -311,7 +318,7 @@ public class MCTNode {
 
   public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
     var child:MCTNode;
-    child = generateChild(positionsSeen);
+    child = tpGenerateChild(positionsSeen);
 
     // no children (leaf or all children)
     if(child == null) { 
@@ -339,12 +346,14 @@ public class MCTNode {
   }
 
 
-  public def generateChildNoModify(positionsSeen:HashSet[Int]):MCTNode {
+  public def dpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
-    // Console.OUT.println("[generateChildNoModify] inside fn.");
     val possibleMoves = unexploredMoves.clone();
-    // Console.OUT.println("[generateChildNoModify] unexplored moves left: " + unexploredMoves.size());
-    // Console.OUT.println("[generateChildNoModify] current turn: " + this.turn);
+
+    pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	   "Picking move for " + this.turn.desc() + 
+	   "(" + this.turn.token() + ")");
+
     while(!possibleMoves.isEmpty()) {
       var randIdx:Int;
       var possibleState:BoardState = null;
@@ -353,8 +362,11 @@ public class MCTNode {
       // if it should be, this check is redundant:
       if (unexploredMoves.size() > 0) {
 	randIdx = rand.nextInt(possibleMoves.size());
-        // Console.OUT.println("[generateChildNoModify] randIdx is " + randIdx);
-        // Console.OUT.println("[generateChildNoModify] possibleMoves(randIdx) is " + possibleMoves(randIdx));
+
+	pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	       "Move " + randIdx + " selected. Options were " + 
+	       printPossible(possibleMoves));
+	
 	possibleState = state.doMove(possibleMoves(randIdx), turn);
 	possibleMoves.removeAt(randIdx);
       }
@@ -362,17 +374,22 @@ public class MCTNode {
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
       if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
-        // Console.OUT.println("found a valid move with randidx");
+	pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	       "Move is valid.");
+
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
     }
-    
+
+    pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	   "No valid moves.");
+
     // no more actions are possible.
     return new MCTNode(this, state, true);
   }
 
-  public def generateChild(positionsSeen:HashSet[Int]):MCTNode {
+  public def tpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
 
     if(unexploredMoves.isEmpty() && !expanded) {
@@ -535,10 +552,8 @@ public class MCTNode {
     pass = b;
   }
 
-
-
   private def pdebug(val prefix:String, val flag:Int, val msg:String):Boolean {
-    if (((DEBUG_MODE & flag) > 0) || flag == 0) {
+    if (((DEBUG_MODE & flag) == flag) || flag == 0) {
       Console.OUT.println();
       Console.OUT.println("["+prefix+"] - "+ msg);
       return true;
@@ -547,9 +562,11 @@ public class MCTNode {
   }
 
   private def pdebugWait(val prefix:String, val flag:Int, val msg:String) {
-    if (pdebug(prefix, flag, msg)) {
+    if (pdebug(prefix, flag, msg) && !skipWait.get()) {
       Console.OUT.println("\nHit [Enter] to continue");
-      Console.IN.readLine();
+      val skip = Console.IN.readLine();
+      if (skip.equals("finish"))
+	skipWait.getAndSet(true);
       Console.OUT.println("\nProceeding");
     }
   }
@@ -604,6 +621,18 @@ public class MCTNode {
     
     for (result in results.values()) {
       sb.add(result + ",\n\t");
+    }
+
+    sb.add("]\n");
+    return sb.result();
+  }
+
+  private def printPossible(val idxs:ArrayList[Int]):String{
+    val sb = new StringBuilder();
+    sb.add("\n\t[");
+    
+    for (idx in idxs) {
+      sb.add(idx + ",\n\t");      
     }
 
     sb.add("]\n");
