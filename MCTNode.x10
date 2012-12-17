@@ -19,7 +19,6 @@ public class MCTNode {
   // used to compute UCB during tree policy.
   static public val EXPLORE_PARAM:Double = .707; 
 
-
   // fields
   private var parent:MCTNode;
   private val turn:Stone;
@@ -31,7 +30,6 @@ public class MCTNode {
   private var realMove:MCTNode;
   private var unexploredMoves:ArrayList[Int];
   private var expanded:Boolean;
-
 
   // DEBUG STUFF
   private static val DEBUG_MODE = 
@@ -72,8 +70,6 @@ public class MCTNode {
   public static val dpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val bpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val tpTimeElapsed:AtomicLong = new AtomicLong(0);
-
-
 
   // constructors
 
@@ -125,7 +121,6 @@ public class MCTNode {
       this.unexploredMoves = null;
   }
 
-
   // methods
   public def computeUcb(val c:Double):Double{
     // calculation involves the parent.  TODO: make sure we don't try to
@@ -155,23 +150,13 @@ public class MCTNode {
     return ucb;
   }
 
-
   public def getBestChild(val c:Double):MCTNode {
-    // Console.OUT.println("[getBestChild] entering fn.");
     var bestVal:Double = Double.NEGATIVE_INFINITY;
     var bestValArg:MCTNode = null;
     for(var i:Int = 0; i < children.size(); i++) {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
 
-      // pdebug("getBestChild", GBC_DETAIL, 
-      // 	     currChild.hashCode() + 
-      // 	     "- UCB is : " + currVal + " vs " + bestVal);
-
-      if (c == 0.0) {
-        // Console.OUT.println("[getBestChild] board: ");
-        // Console.OUT.println(currChild.getBoardState().print());
-      }
       if(currVal > bestVal) {
         bestVal = currVal;
         bestValArg = currChild;
@@ -179,9 +164,6 @@ public class MCTNode {
 
     }
 
-    // pdebug("getBestChild", GBC_DETAIL, 
-    // 	   "returning " + bestValArg.hashCode() + " (UCB: " +
-    // 	   + bestVal + ")");
     return bestValArg;
   }
 
@@ -191,43 +173,21 @@ public class MCTNode {
     return (Timer.nanoTime() - startTime) < ((GOBOT_THINK_TIME as Long) * NANOS_PER_MILLI);
   }
 
-  // public def withinResourceBound(nodesProcessed:AtomicInteger,
-  //       			 bound:Int):Boolean{
-  //   pdebug("withinResourceBound", UCT_DETAIL,
-  //          "Checking the resource bound.  Nodes Processed: " +
-  //          nodesProcessed.get() +
-  //          ", bound: " +
-  //          bound);
-  //   return nodesProcessed.get() < bound;
-  // }
-
-
-  // public def withinResourceBound(numDefaultPolicies:AtomicInteger,
-  //       			 bound:Int):Boolean{
-  //   return numDefaultPolicies.get() < bound;
-  // }
-
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode {
-    //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
     val MAX_NODES_PROCESSED:Int = 10000;
 
     this.parent = null; // make sure backprop stops at this node.
 
-    // Console.OUT.println("max default policies: " + MAX_DEFAULT_POLICIES);
-    // Console.OUT.println("max_dp_paths: " + MAX_DP_PATHS);
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
     val defaultPolicyDepth:Int = state.getSize() * 2;
 
     val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
-    // while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
-    // while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
     while(withinResourceBound(startTime)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
 
-      //Console.OUT.println("[tree policy] Doing a tree policy.");
       // Tree Policy Start
       val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
@@ -239,12 +199,6 @@ public class MCTNode {
       }
       tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
       // Tree Policy End
-
-      // pdebugWait("UCTSearch", TP_DETAIL,
-      // 		 "WILL EXPLORE\n" + printTPResults(dpNodes));
-      // pdebugWait("UCTSearch", TP_DETAIL,
-      // 		 "BEFORE DP\n" + printSearchTree());
-
       val dpNodeResults:Array[AtomicDouble] = (
 	new Array[AtomicDouble](dpNodes.size(), 
 				(x:Int)=>new AtomicDouble()));
@@ -281,51 +235,27 @@ public class MCTNode {
                   nodesProcessed.incrementAndGet();
                   tempNode = currNode.dpGenerateChild(randomGameMoves);
 
-		  // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		  // 	 "GENERATED\n" + tempNode.getBoardState().print());
-
-
                   if(tempNode != null) {
                     currParent = currNode; // old currNode value is this.
                     currNode = tempNode;
                     currNode.setParent(currParent);
-		    // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		    //        "pass value: " + currNode.pass);
-		    // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		    //        "parent pass value: " + currParent.pass);
                     randomGameMoves.add(currNode.state.hashCode());
                   }
                   currDepth++;
 		}
 
-		// pdebug("defaultPolicy", DP_DETAIL,
-		//        "Done with DP for " + printNode(dpNode) + "\n" +
-		//        "Leaf value is " + currNode.leafValue());
-
-		// TODO: this is the minimax error.
 		dpNodeResults(dpNodeIdx).getAndAdd(currNode.leafValue());
               }
             }
 	  }
         }
 
-        // TODO: we do more than one default policy.  figure out how many to
-        // increment this by.
         numDefaultPolicies.getAndAdd(1);
-        // pdebug("defaultPolicy", DP_DETAIL,
-        //        "Nodes processed at the end of a default policy: " +
-        //        nodesProcessed.get());
-        //Console.OUT.println("[default policy] unexploredMoves.size(): " + this.unexploredMoves.size());
       }
 
 
       dpTimeElapsed.addAndGet(Timer.nanoTime() - dpStartTime);
       // Default Policy End
-
-      // pdebugWait("UCTSearch", DP_DETAIL,
-      // 		 "RESULTS:\n" + printDPResults(dpNodes, dpNodeResults));
-      // pdebugWait("UCTSearch", DP_DETAIL,
-      // 		 "BEFORE BACKPROP:\n" + printSearchTree());
 
       // Back Propagate Start
       val bpStartTime = Timer.nanoTime();
@@ -347,9 +277,6 @@ public class MCTNode {
       bpTimeElapsed.addAndGet(Timer.nanoTime() - bpStartTime);
       // Back Propagate End
 
-      // pdebugWait("UCTSearch", BP_DETAIL,
-      // 		 "AFTER BACKPROP:\n" + printSearchTree());
-    
     } // end 'while within resource bound'
 
     totalNodesProcessed.getAndAdd(nodesProcessed.get());
@@ -358,22 +285,6 @@ public class MCTNode {
 
     skipWait.getAndSet(false);
     
-    // pdebug("UCTSearch", UCT_DETAIL,
-    // 	   "nodes processed: " + nodesProcessed.get() + "\n" +
-    // 	   "time elapsed: " + (Timer.nanoTime() - startTime) + "\n");
-    // pdebug("UCTSearch", UCT_DETAIL,
-    // 	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
-    // 	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
-    // pdebugWait("UCTSearch", UCT_DETAIL,
-    // 	       "AFTER UCTSEARCH:\n" + printSearchTree());
-    // pdebugWait("UCTSearch", UCT_DETAIL,
-    // 	       "Move selected: " + printNode(bestChild));
-    // pdebugWait("UCTSearch", UCT_DETAIL,
-    //            "Board for move selected: \n" +
-    //            bestChild.state.print());
-               
-               
-
     nodesProcessed.set(0);
     return bestChild;
   }
@@ -403,12 +314,7 @@ public class MCTNode {
         // recursive descent through the tree, best choice at each step:
 	val bc = getBestChild(EXPLORE_PARAM);
 
-        // uncomment to eliminate recursive descent:
-        //return bc;
-
 	// Remember to add this node to the new list of positions seen
-
-        // TODO: add recursive descent back in.
 	val newPositionsSeen:HashSet[Int] = positionsSeen.clone();
 	newPositionsSeen.add(this.state.hashCode());
 
@@ -425,31 +331,15 @@ public class MCTNode {
     //generate the passing child
     val possibleMoves = this.state.listOfEmptyIdxs();
 
-    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
-    // 	   "Picking move for " + this.turn.desc() + 
-    // 	   "(" + this.turn.token() + ")");
-
-
     // when you're opponent has passed and you're winning, you should pass
     // and win.
-    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
-    // 	   "current pass value: " + this.pass +
-    // 	   ", current leader: " + this.state.currentLeader().desc());
     if (this.pass && (this.state.currentLeader() == this.turn)) {
-      //Console.OUT.println("[dpGenerateChild] is passing.");
-      // pdebug("dpGenerateChild", DP_ITR_DETAIL,
-      //        "passing to win during default policy.");
       return new MCTNode(this, state, true); 
     }
-    //Console.OUT.println("[dpGenerateChild] unexploredMoves.size(): " + unexploredMoves.size());
-    //Console.OUT.println("[dpGenerateChild] possibleMoves.size(): " + possibleMoves.size());
     while(!possibleMoves.isEmpty()) {
-      //Console.OUT.println("[dpGenerateChild] trying a possible move.");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
-      // TODO: should this be possibleMoves?
-      // if it should be, this check is redundant:
       if (possibleMoves.size() > 0) {
 	randIdx = rand.nextInt(possibleMoves.size());
 
@@ -460,25 +350,16 @@ public class MCTNode {
 	possibleState = state.doMove(possibleMoves(randIdx), turn);
 	possibleMoves.removeAt(randIdx);
 
-        //Console.OUT.println("[dpGenerateChild] removed from possibleMoves.size().");
-        //Console.OUT.println("[dpGenerateChild] unexploredMoves.size(): " + unexploredMoves.size());
-        //Console.OUT.println("[dpGenerateChild] possibleMoves.size(): " + possibleMoves.size());
       }
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
       if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
-	// pdebug("dpGenerateChild", DP_ITR_DETAIL,
-	//        "Move is valid.");
-
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
     }
 
-    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
-    // 	   "No valid moves.");
-    //Console.OUT.println("[dpGenerateChild] no valid moves; is passing.");
     // no more actions are possible.
     return new MCTNode(this, state, true);
   }
@@ -513,28 +394,17 @@ public class MCTNode {
 
 
   public def leafValue():Double {
-    // Console.OUT.println("the current leader is " + state.currentLeader());
-    //if (state.currentLeader() == turn)
+    // TODO: fix these so AI can be white
     if (state.currentLeader() == Stone.BLACK)
       return 1.0;
-    //else if (state.currentLeader() == Stone.getOpponentOf(turn))
     else if (state.currentLeader() == Stone.WHITE)
       return 0.0;
     else
       return 0.5;
   }
 
-
-  // TODO: update this so it doesn't go all the way to the root.  a minor optimization.
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
-
-      // pdebug("backProp", BP_DETAIL, 
-      // 	     currNode.hashCode() + ": old timesVisited was " + 
-      // 	     currNode.timesVisited.get());
-      // pdebug("backProp", BP_DETAIL, 
-      // 	     currNode.hashCode() + ": old aggReward was " + 
-      // 	     currNode.aggReward.get());
 
       currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
                                                      // MAX_DP_PATHS parallel default policies
@@ -545,16 +415,6 @@ public class MCTNode {
       else
         currNode.aggReward.addAndGet(-1 * reward);
 
-      // pdebug("backProp", BP_DETAIL, 
-      // 	     currNode.hashCode() + ": new timesVisited is " + 
-      // 	     currNode.timesVisited.get());
-      // pdebug("backProp", BP_DETAIL, 
-      // 	     currNode.hashCode() + ": new aggReward is " + 
-      // 	     currNode.aggReward.get());
-
-      // if (reward == 1.0) {
-        // Console.OUT.println("[backProp] found a winning move.");
-      // }
       currNode = currNode.parent;
     }
   }
@@ -569,23 +429,10 @@ public class MCTNode {
    * Otherwise, the humanMove node that was passed in is returned.
    */
   public def addHumanMoveToOpponentGameTree(val humanMove:BoardState):MCTNode {
-    // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-    //        "finding this idiot/human board state in the game tree: \n" +
-    //        humanMove.print());
     val existingNode:MCTNode = findMove(humanMove);
     if(existingNode != null) {
-      // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-      //        "FOUND, PRINTING ITS CHILDREN");
-
-      // for(var i:Int = 0; i < existingNode.children.size(); i++) {
-      //   pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-      //          "child( " + i + ")\n" + existingNode.children(i).getBoardState().print());
-      // }
-      
       return existingNode;
     } else {
-      // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-      //        "NOT FOUND.");
       return new MCTNode(this, humanMove); // this constructor sets the parent.
     }
   }
@@ -594,9 +441,6 @@ public class MCTNode {
   public def findMove(val stateToFind:BoardState) {
     if (children != null) {
       for(var i:Int = 0; i < children.size(); i++) {
-	// pdebug("findMove", UCT_DETAIL,
-	//        "comparing to move: \n" +
-	//        children(i).getBoardState().print());
 	if(children(i).getBoardState().equals(stateToFind)) {
           return children(i);
 	} 
@@ -605,10 +449,7 @@ public class MCTNode {
     return null;
   }
 
-  // TODO: Make sure !validMoveLeft() is still OK
   public def isLeaf():Boolean {
-    // pdebug("isLeaf", DP_DETAIL,
-    //        "isLeafOnPasses(): " + isLeafOnPasses());
     // leaf: no valid moves or two preceding moves were passes    
     return isLeafOnPasses();// || !validMoveLeft();
   }
@@ -618,7 +459,6 @@ public class MCTNode {
             parent.pass &&
             this.pass);
   }                                       
-
 
   public def validMoveLeft():Boolean {
     for(var i:Int = 0; i < state.getSize(); i++) {
@@ -673,10 +513,11 @@ public class MCTNode {
     pass = b;
   }
 
+  // Debug Methods
   private def pdebug(val prefix:String, val flag:Int, val msg:String):Boolean {
     if (((DEBUG_MODE & flag) == flag) || flag == 0) {
-      //Console.OUT.println();
-      //Console.OUT.println("["+prefix+"] - "+ msg);
+      Console.OUT.println();
+      Console.OUT.println("["+prefix+"] - "+ msg);
       return true;
     }
     return false;
@@ -684,11 +525,11 @@ public class MCTNode {
 
   private def pdebugWait(val prefix:String, val flag:Int, val msg:String) {
     if (pdebug(prefix, flag, msg) && !skipWait.get()) {
-      //Console.OUT.println("\nHit [Enter] to continue");
+      Console.OUT.println("\nHit [Enter] to continue");
       val skip = Console.IN.readLine();
       if (skip.equals("finish"))
 	skipWait.getAndSet(true);
-      //Console.OUT.println("\nProceeding");
+      Console.OUT.println("\nProceeding");
     }
   }
 
@@ -767,13 +608,4 @@ public class MCTNode {
 	    " UCB_ex=" + node.computeUcb(EXPLORE_PARAM) + 
 	    " UCB_de=" + node.computeUcb(0) + ">");
   }
-    // Console.OUT.println("[tree policy] finished, yielding boards: ");
-    //for(var i:Int = 0; i < dpNodes.size(); i++) {
-    // Console.OUT.println("[tree policy] board: ");
-    // Console.OUT.println(dpNodes(i).getBoardState().print());
-    // Console.OUT.println("[tree policy] its unexplored moves: " + dpNodes(i).unexploredMoves.size());
-    // Console.OUT.println("[tree policy] turn: " + dpNodes(i).turn);
-    //}
-
-
 }

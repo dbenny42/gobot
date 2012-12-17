@@ -141,11 +141,9 @@ public class BoardState {
   public def listOfEmptyIdxs():ArrayList[Int] {
     val spots:ArrayList[Int] = new ArrayList[Int]();
     for (var idx:Int = 0; idx < this.stones.size; idx++) {
-      // Console.OUT.println("[listOfEmptyIdxs] idx: " + idx + " stone: " + this.stones(idx));
       if (Stone.canPlaceOn(this.stones(idx)))
 	spots.add(idx);
     }
-    // Console.OUT.println("[listOfEmptyIdxs] the length is: " + spots.size());
     return spots;
   }
 
@@ -364,7 +362,6 @@ public class BoardState {
     
     // Make sure we ARE pushing ONTO an empty stone
     val oldStone:Stone = this.stoneAt(idx);
-    //Console.OUT.println("canPlaceOn is " + Stone.canPlaceOn(oldStone));
     if (!Stone.canPlaceOn(oldStone))
       return null;
 
@@ -388,7 +385,6 @@ public class BoardState {
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
     if (newChain == Chain.NONE || newChain.isDead()) {
-      //Console.OUT.println("Failed because of suicide rule");
       return null;
     }
 
@@ -403,7 +399,6 @@ public class BoardState {
     // If we placed in the opponent's territory, the opponent loses that
     // territory block
     else if (oldStone == Stone.getTerritoryOf(Stone.getOpponentOf(stone))) {
-      //Console.OUT.println("Starting fill on opponent territory");
       val stonesFilled:Int = newBoard.doFill(row, col, oldStone, Stone.EMPTY);
       newBoard.addScore(-1*stonesFilled, Stone.getOpponentOf(stone));
       newBoard.addScore(-1, Stone.getOpponentOf(stone));
@@ -413,7 +408,6 @@ public class BoardState {
     // If we placed on an empty space, we should check to see if it buys us any
     // new territory
     else if (oldStone == Stone.EMPTY) {
-      //Console.OUT.println("Starting fill on empty");
       val stonesFilled:Int = newBoard.doFill(row, col, Stone.EMPTY,
 					     Stone.getTerritoryOf(stone));
       newBoard.addScore(stonesFilled, stone);
@@ -424,25 +418,6 @@ public class BoardState {
     newBoard.addScore(capturePoints, stone);
     newBoard.addScore(-1*capturePoints, Stone.getOpponentOf(stone));
     return newBoard;
-  }
-
-
-
-
-  public def printChains():String {
-    val sb = new StringBuilder();
-    val chainsPrinted = new HashSet[Chain]();
-
-    for (var idx:Int = 0; idx < this.chains.size; idx++) {
-      if (this.chains(idx) != Chain.NONE && !chainsPrinted.contains(this.chains(idx))) {
-	sb.add("CHAIN: ");
-	sb.add(this.chains(idx).toString());
-	sb.add("\n");
-	chainsPrinted.add(this.chains(idx));
-      }
-    }
-
-    return sb.result();
   }
 
   /**
@@ -507,14 +482,8 @@ public class BoardState {
     sb.add("Black: " + this.blackScore + "\n");
     sb.add("White: " + this.whiteScore + "\n");
 
-    //sb.add("\n\nChains at:\n");
-    //sb.add(this.printChains());
-    
     return sb.result();
   }
-
-
-
 
   /**
    * Attempts to do a territory fill at (row, col). If a boundary stone is found
@@ -531,8 +500,6 @@ public class BoardState {
   private def doFill(row:Int, col:Int, oldStone:Stone, newStone:Stone):Int {
     val expectedBound:Stone = Stone.getPieceOf(newStone);
     var numModified:Int = 0;
-
-    //Console.OUT.println("Starting doFill");
 
     // Check bounds and gather indices
     val examined:HashSet[Int] = new HashSet[Int]();
@@ -587,18 +554,6 @@ public class BoardState {
     }
 
     return inFill;
-  }
-
-
-  // TODO: remove after testing.
-  public def printAllLiberties() {
-    for(var idx:Int = 0; idx < this.getSize(); idx++) {
-      for (chain in getChainsAt(this.getAdjacentIndices(idx))) {
-        for(x in chain.getLiberties()) {
-          Console.OUT.println("LIBERTY: " + x);
-        }
-      }
-    }
   }
 
   /**
@@ -731,7 +686,6 @@ public class BoardState {
     return adjIndices;
   }
 
-
   public def addLibertiesAndUpdate(toUpdate:Chain, indices:HashSet[Int]) {
     val newChain = toUpdate.addLiberties(indices);
     for (member in newChain.getMembers()) {
@@ -761,4 +715,32 @@ public class BoardState {
       this.chains(member) = newChain;
     }    
   }
+
+  // Debug Methods
+  public def printChains():String {
+    val sb = new StringBuilder();
+    val chainsPrinted = new HashSet[Chain]();
+
+    for (var idx:Int = 0; idx < this.chains.size; idx++) {
+      if (this.chains(idx) != Chain.NONE && !chainsPrinted.contains(this.chains(idx))) {
+	sb.add("CHAIN: ");
+	sb.add(this.chains(idx).toString());
+	sb.add("\n");
+	chainsPrinted.add(this.chains(idx));
+      }
+    }
+
+    return sb.result();
+  }
+
+  public def printAllLiberties() {
+    for(var idx:Int = 0; idx < this.getSize(); idx++) {
+      for (chain in getChainsAt(this.getAdjacentIndices(idx))) {
+        for(x in chain.getLiberties()) {
+          Console.OUT.println("LIBERTY: " + x);
+        }
+      }
+    }
+  }
+
 }

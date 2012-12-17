@@ -48,13 +48,9 @@ public class Go {
   public static def randomComputerTurn(var currNode:MCTNode, 
 				       var positionsSeen:HashSet[Int]):MCTNode {
     var nodeToAdd:MCTNode;
-    // Console.OUT.println("the idiotBot is thinking....");
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
-      //Console.OUT.println("[randomComputerTurn] PASSING FROM THE TOP LEVEL."); 
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
-      //Console.OUT.println("[randomComputerTurn] calling dpGenerateChild."); 
-      //Console.OUT.println("[randomComputerTurn] currNode.unexploredMoves.size(): " + currNode.getUnexploredMoves().size());
       nodeToAdd = currNode.dpGenerateChild(positionsSeen);
     }
 
@@ -62,7 +58,6 @@ public class Go {
     if(nodeToAdd.getPass()) {
       currNode.setPass(true);
     }
-    // Console.OUT.println("finished idiotBot turn.");
     return currNode;
   }
 
@@ -74,17 +69,6 @@ public class Go {
     nodeToAdd = currNode.UCTSearch(positionsSeen);
 
     currNode = nodeToAdd;
-
-    // if(!currNode.getChildren().isEmpty()) {
-    //   Console.OUT.println("the computer node has children, and here is one:");
-    //   Console.OUT.println("**************************************************");
-    //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
-    //   Console.OUT.println("**************************************************");
-    // } else {
-    //   Console.OUT.println("the computer node has no children.");
-    // }
-    
-    // Console.OUT.println("finished gobot turn.");
     return currNode;
   }
 
@@ -107,15 +91,6 @@ public class Go {
 	  currNode.addHumanMoveToOpponentGameTree(currNode.getBoardState());
         passNode.setPass(true);
         currNode = passNode;
-
-        // if(!currNode.getChildren().isEmpty()) {
-        //   Console.OUT.println("the human node has children, and here is one:");
-        //   Console.OUT.println("**************************************************");
-        //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
-        //   Console.OUT.println("**************************************************");
-        // } else {
-        //   Console.OUT.println("the human node has no children.");
-        // }
 
         return currNode;
       }
@@ -140,15 +115,6 @@ public class Go {
     var nodeToAdd:MCTNode = currNode.addHumanMoveToOpponentGameTree(tempState);
     currNode = nodeToAdd;
 
-    // if(!currNode.getChildren().isEmpty()) {
-    //   Console.OUT.println("the human node has children, and here is one:");
-    //   Console.OUT.println("**************************************************");
-    //   Console.OUT.println(currNode.getChildren()(1).getBoardState().print());
-    //   Console.OUT.println("**************************************************");
-    // } else {
-    //   Console.OUT.println("the human node has no children.");
-    // }
-
     return currNode;
   }
 
@@ -172,10 +138,8 @@ public class Go {
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
 
     while(!currNode.gameIsOver()) {
-      //Console.OUT.println(currNode.getBoardState().print());
       if(toMove == Stone.BLACK) {
         currNode = computerTurn(currNode, positionsSeen, toMove);
-        //Console.OUT.println("[zeroPlayerGame]: unexploredMoves.size(): " + currNode.getUnexploredMoves().size());
       } else {
 
         // uses the bad AI to play. 
@@ -187,7 +151,6 @@ public class Go {
       toMove = changeToMove(toMove);
       numTurns.addAndGet(1);
     } // end game
-
 
     // print statistics
     Console.OUT.println("avg tree policy time: " + 
@@ -238,13 +201,6 @@ public class Go {
     positionsSeen.clear();
 
     positionsSeen.add(gameTree.getBoardState().hashCode());
-
-    // if human is going first.
-    // if(humanStone == Stone.BLACK) {
-    //   Console.OUT.println(currNode.getBoardState().print());
-    //   currNode = humanTurn(currNode, positionsSeen, Stone.BLACK);
-    //   toMove = Stone.WHITE;
-    // }
 
     while(!currNode.gameIsOver()) {
       Console.OUT.println(currNode.getBoardState().print());
@@ -301,6 +257,7 @@ public class Go {
     positionsSeen.add(gameTree.getBoardState().hashCode());
 
     if(NUMHUMANS == 1) {
+      // TODO: Enable when AI can play as white
       //Console.OUT.println("It looks like you're about to start a single-player game.  Enter 1 to play as black, 0 to play as white.");
       //var color:String = Console.IN.readLine();
       //var humanStone:Stone = (Int.parse(color) == 1 ? Stone.BLACK : Stone.WHITE);

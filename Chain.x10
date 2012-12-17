@@ -85,17 +85,18 @@ public struct Chain {
 
     return true;
   }
-*/
 
-  // public def hashCode() {
-  //   Console.OUT.println("[Chain hashCode] inside call.");
-  //   val sb = new StringBuilder();
-  //   for (idx in this.members) {
-  //     Console.OUT.println("[Chain hashCode] adding a member.");
-  //     sb.add(idx);
-  //   }
-  //   return sb.result().hashCode();
-  // }
+
+  public def hashCode() {
+    Console.OUT.println("[Chain hashCode] inside call.");
+    val sb = new StringBuilder();
+    for (idx in this.members) {
+      Console.OUT.println("[Chain hashCode] adding a member.");
+      sb.add(idx);
+    }
+    return sb.result().hashCode();
+  }
+*/
 
   /**
    * Returns a copy of this Chain's member set

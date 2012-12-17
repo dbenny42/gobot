@@ -49,17 +49,6 @@ for think_time in 100 500 1000 3000 6000; do
     ./TestGo $TEST_BOARD_WIDTH $TEST_BOARD_HEIGHT $SAMPLE_SIZE 
 done
 
-export GOBOT_BATCH_SIZE=4
-export X10_NTHREADS=32
-for think_time in 50 100 500; do
-    export GOBOT_THINK_TIME=$think_time
-    echo
-    echo "-----------------------------------------------------------------------"
-    echo "<X10_NTHREADS=$X10_NTHREADS, GOBOT_BATCH_SIZE=$GOBOT_BATCH_SIZE, GOBOT_THINK_TIME=$GOBOT_THINK_TIME>"
-    echo "-----------------------------------------------------------------------"
-    ./TestGo $TEST_BOARD_WIDTH $TEST_BOARD_HEIGHT $SAMPLE_SIZE 
-done
-
 echo
 echo "======================================================================="
 echo "Performing 18x18 Test"

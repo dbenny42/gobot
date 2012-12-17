@@ -25,15 +25,6 @@ public struct Stone {
   }
 
   public static def canPlaceOn(s:Stone):Boolean {
-    // Console.OUT.println("[canPlaceOn] the stone is " + s.desc);
-    // Console.OUT.println("[canPlaceOn] unformatted: " + s);
-    // Console.OUT.println("[canPlaceOn] unformatted val: " + Stone.BLACK);
-    // Console.OUT.println("[canPlaceOn] empty: " + (s == Stone.EMPTY));
-    // Console.OUT.println("[canPlaceOn] terr_b: " + (s == Stone.TERR_B));
-    // Console.OUT.println("[canPlaceOn] terr_w: " + (s == Stone.TERR_W));
-    // Console.OUT.println("[canPlaceOn] black: " + (s == Stone.BLACK));
-    // Console.OUT.println("[canPlaceOn] white: " + (s == Stone.WHITE));
-    // Console.OUT.println("[canPlaceOn] invalid: " + (s == Stone.INVALID));
     return (s == Stone.EMPTY) ||
             (s == Stone.TERR_B) ||
               (s == Stone.TERR_W);
