@@ -206,8 +206,8 @@ public class Go {
 			(currNode.totalTimeElapsed.get() / NANOS_PER_SECOND) + 
 			" seconds");
     Console.OUT.println("processing rate: " + 
-			((currNode.totalTimeElapsed.get() as Double) / 
-			 (currNode.totalNodesProcessed.get() / 
+			((currNode.totalNodesProcessed.get() as Double) / 
+			 (currNode.totalTimeElapsed.get() / 
 			  NANOS_PER_SECOND)) + " nodes per second");
 
     val winner:Stone = printWinner(currNode);

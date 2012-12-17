@@ -52,7 +52,7 @@ public class MCTNode {
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
 
   private static val MAX_ASYNCS:Int = (x10Nthreads * 1.1) as Int;
-  private static val MAX_PLACES:Int = Place.MAX_PLACES;
+  private static val MAX_PLACES:Int = 1;
   private static val BATCH_SIZE:Int =     
     Int.parseInt(System.getenv().getOrElse("GOBOT_BATCH_SIZE", "1"));
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
@@ -231,60 +231,61 @@ public class MCTNode {
       pdebugWait("UCTSearch", TP_DETAIL,
 		 "BEFORE DP\n" + printSearchTree());
 
-      val dpNodeRegion:Region = Region.make(0, dpNodes.size()-1);
       val dpNodeResults:Array[AtomicDouble] = (
 	new Array[AtomicDouble](dpNodes.size(), 
 				(x:Int)=>new AtomicDouble()));
 
       // Default Policy Start
       val dpStartTime = Timer.nanoTime();
-      finish for (dpNodeIdx in dpNodeRegion) {
+      finish for (dpNodeIdx in 0..(dpNodes.size()-1)) {
 
-	val dpNode = dpNodes.get(dpNodeIdx(0));
-        val currBoardState:BoardState = dpNode.state;
+	async {
+	  val dpNode = dpNodes.get(dpNodeIdx);
+          val currBoardState:BoardState = dpNode.state;
 
-        // TODO: the issue is the at.  it appears to be changing the values.
-        // inlined default policy:
-        finish {
-          for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
-            async {
-              var currParent:MCTNode = new MCTNode(dpNode);
-              var currNode:MCTNode = new MCTNode(dpNode);
-              var tempNode:MCTNode;
-              var currDepth:Int = 0;
-              val randomGameMoves:HashSet[Int] = positionsSeen.clone();
-              randomGameMoves.add(currNode.state.hashCode());
+          // TODO: the issue is the at.  it appears to be changing the values.
+          // inlined default policy:
+          finish {
+            for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
+              async {
+		var currParent:MCTNode = new MCTNode(dpNode);
+		var currNode:MCTNode = new MCTNode(dpNode);
+		var tempNode:MCTNode;
+		var currDepth:Int = 0;
+		val randomGameMoves:HashSet[Int] = positionsSeen.clone();
+		randomGameMoves.add(currNode.state.hashCode());
 
-              while(currNode != null && !currNode.isLeaf() &&
-                    currDepth < defaultPolicyDepth) {
-                nodesProcessed.incrementAndGet();
-                tempNode = currNode.dpGenerateChild(randomGameMoves);
+		while(currNode != null && !currNode.isLeaf() &&
+                      currDepth < defaultPolicyDepth) {
+                  nodesProcessed.incrementAndGet();
+                  tempNode = currNode.dpGenerateChild(randomGameMoves);
 
-		pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		       "GENERATED\n" + tempNode.getBoardState().print());
-
-
-                if(tempNode != null) {
-                  currParent = currNode; // old currNode value is this.
-                  currNode = tempNode;
-                  currNode.setParent(currParent);
 		  pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		         "pass value: " + currNode.pass);
-		  pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		         "parent pass value: " + currParent.pass);
-                  randomGameMoves.add(currNode.state.hashCode());
-                }
-                currDepth++;
+			 "GENERATED\n" + tempNode.getBoardState().print());
+
+
+                  if(tempNode != null) {
+                    currParent = currNode; // old currNode value is this.
+                    currNode = tempNode;
+                    currNode.setParent(currParent);
+		    pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		           "pass value: " + currNode.pass);
+		    pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		           "parent pass value: " + currParent.pass);
+                    randomGameMoves.add(currNode.state.hashCode());
+                  }
+                  currDepth++;
+		}
+
+		pdebug("defaultPolicy", DP_DETAIL,
+		       "Done with DP for " + printNode(dpNode) + "\n" +
+		       "Leaf value is " + currNode.leafValue());
+
+		// TODO: this is the minimax error.
+		dpNodeResults(dpNodeIdx).getAndAdd(currNode.leafValue());
               }
-
-	      pdebug("defaultPolicy", DP_DETAIL,
-		     "Done with DP for " + printNode(dpNode) + "\n" +
-		     "Leaf value is " + currNode.leafValue());
-
-              // TODO: this is the minimax error.
-              dpNodeResults(dpNodeIdx(0)).getAndAdd(currNode.leafValue());
             }
-          }
+	  }
         }
 
         // TODO: we do more than one default policy.  figure out how many to
@@ -307,8 +308,8 @@ public class MCTNode {
 
       // Back Propagate Start
       val bpStartTime = Timer.nanoTime();
-      finish for (dpNodeIdx in dpNodeRegion) {
-	val dpNode = dpNodes(dpNodeIdx(0));
+      finish for (dpNodeIdx in 0..(dpNodes.size()-1)) {
+	val dpNode = dpNodes(dpNodeIdx);
         if(numAsyncsSpawned.get() < MAX_ASYNCS) {
           numAsyncsSpawned.incrementAndGet();
           async {
