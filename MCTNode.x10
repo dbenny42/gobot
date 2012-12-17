@@ -23,9 +23,9 @@ public class MCTNode {
   // fields
   private var parent:MCTNode;
   private val turn:Stone;
-  private val children:ArrayList[MCTNode];
-  private val timesVisited:AtomicInteger;
-  private val aggReward:AtomicDouble;
+  private var children:ArrayList[MCTNode];
+  private var timesVisited:AtomicInteger;
+  private var aggReward:AtomicDouble;
   private var state:BoardState;
   private var pass:Boolean;
   private var realMove:MCTNode;
@@ -89,24 +89,36 @@ public class MCTNode {
 
   public def this(parent:MCTNode, state:BoardState, pass:Boolean) {
     this.parent = parent;
-    this.timesVisited = new AtomicInteger(0); // only gets incremented during backprop.
-    this.aggReward = new AtomicDouble(0.0); // gets set during backprop.
     this.state = state;
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
-    this.children = new ArrayList[MCTNode]();
+    this.timesVisited = null;
+    this.aggReward = null;
+    this.children = null;
     this.unexploredMoves = null;
     this.expanded = false;
    }
 
   public def this(toCopy:MCTNode) {
     this.parent = toCopy.parent;
-    this.timesVisited = new AtomicInteger(toCopy.timesVisited.get());
-    this.aggReward = new AtomicDouble(toCopy.aggReward.get());
     this.state = toCopy.state;
     this.turn = toCopy.turn;
     this.pass = toCopy.pass;
-    this.children = toCopy.children.clone();
+
+    if (toCopy.timesVisited != null)
+      this.timesVisited = new AtomicInteger(toCopy.timesVisited.get());
+    else
+      this.timesVisited = null;
+
+    if (toCopy.aggReward != null)
+      this.aggReward = new AtomicDouble(toCopy.aggReward.get());
+    else
+      this.aggReward = null;
+
+    if (toCopy.children != null)
+      this.children = toCopy.children.clone();
+    else
+      this.children = null;
     if (toCopy.unexploredMoves != null)
       this.unexploredMoves = toCopy.unexploredMoves.clone();
     else
@@ -243,6 +255,13 @@ public class MCTNode {
 
 	async {
 	  val dpNode = dpNodes.get(dpNodeIdx);
+
+	  // DP fields were lazy-evaluated. Time to set them for real.
+	  if (dpNode.aggReward == null) {
+	    dpNode.timesVisited = new AtomicInteger(0);
+	    dpNode.aggReward = new AtomicDouble(0.0);
+	  }
+
           val currBoardState:BoardState = dpNode.state;
 
           // TODO: the issue is the at.  it appears to be changing the values.
@@ -361,6 +380,18 @@ public class MCTNode {
     
 
   public def treePolicy(positionsSeen:HashSet[Int]):MCTNode{
+
+    // TP fields were lazy-evaluated. Time to set them for real.
+    if (this.children == null) {
+      this.children = new ArrayList[MCTNode]();
+      this.unexploredMoves = this.state.listOfEmptyIdxs();
+      
+      if (this.aggReward == null) {
+	this.timesVisited = new AtomicInteger(0);
+	this.aggReward = new AtomicDouble(0.0);
+      }
+    }
+
     var child:MCTNode;
     child = tpGenerateChild(positionsSeen);
 
@@ -394,20 +425,20 @@ public class MCTNode {
     //generate the passing child
     val possibleMoves = this.state.listOfEmptyIdxs();
 
-    pdebug("dpGenerateChild", DP_ITR_DETAIL,
-	   "Picking move for " + this.turn.desc() + 
-	   "(" + this.turn.token() + ")");
+    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
+    // 	   "Picking move for " + this.turn.desc() + 
+    // 	   "(" + this.turn.token() + ")");
 
 
     // when you're opponent has passed and you're winning, you should pass
     // and win.
-    pdebug("dpGenerateChild", DP_ITR_DETAIL,
-	   "current pass value: " + this.pass +
-	   ", current leader: " + this.state.currentLeader().desc());
+    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
+    // 	   "current pass value: " + this.pass +
+    // 	   ", current leader: " + this.state.currentLeader().desc());
     if (this.pass && (this.state.currentLeader() == this.turn)) {
       //Console.OUT.println("[dpGenerateChild] is passing.");
-      pdebug("dpGenerateChild", DP_ITR_DETAIL,
-             "passing to win during default policy.");
+      // pdebug("dpGenerateChild", DP_ITR_DETAIL,
+      //        "passing to win during default policy.");
       return new MCTNode(this, state, true); 
     }
     //Console.OUT.println("[dpGenerateChild] unexploredMoves.size(): " + unexploredMoves.size());
@@ -437,16 +468,16 @@ public class MCTNode {
       // if valid move (doMove catches invalid, save Ko) AND not seen
       // before (Ko)
       if(possibleState != null && !positionsSeen.contains(possibleState.hashCode())) {
-	pdebug("dpGenerateChild", DP_ITR_DETAIL,
-	       "Move is valid.");
+	// pdebug("dpGenerateChild", DP_ITR_DETAIL,
+	//        "Move is valid.");
 
         var newNode:MCTNode = new MCTNode(this, possibleState);
         return newNode;
       }
     }
 
-    pdebug("dpGenerateChild", DP_ITR_DETAIL,
-	   "No valid moves.");
+    // pdebug("dpGenerateChild", DP_ITR_DETAIL,
+    // 	   "No valid moves.");
     //Console.OUT.println("[dpGenerateChild] no valid moves; is passing.");
     // no more actions are possible.
     return new MCTNode(this, state, true);
@@ -454,9 +485,6 @@ public class MCTNode {
 
   public def tpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
-    if (unexploredMoves == null) {
-      this.unexploredMoves = this.state.listOfEmptyIdxs();
-    }
     if(unexploredMoves.isEmpty() && !expanded) {
       expanded = true;
       return new MCTNode(this, state, true);
@@ -501,12 +529,12 @@ public class MCTNode {
   public def backProp(var currNode:MCTNode, val reward:Double):void {
     while(currNode != null) {
 
-      pdebug("backProp", BP_DETAIL, 
-	     currNode.hashCode() + ": old timesVisited was " + 
-	     currNode.timesVisited.get());
-      pdebug("backProp", BP_DETAIL, 
-	     currNode.hashCode() + ": old aggReward was " + 
-	     currNode.aggReward.get());
+      // pdebug("backProp", BP_DETAIL, 
+      // 	     currNode.hashCode() + ": old timesVisited was " + 
+      // 	     currNode.timesVisited.get());
+      // pdebug("backProp", BP_DETAIL, 
+      // 	     currNode.hashCode() + ": old aggReward was " + 
+      // 	     currNode.aggReward.get());
 
       currNode.timesVisited.addAndGet(MAX_DP_PATHS); // b/c we do
                                                      // MAX_DP_PATHS parallel default policies
@@ -517,12 +545,12 @@ public class MCTNode {
       else
         currNode.aggReward.addAndGet(-1 * reward);
 
-      pdebug("backProp", BP_DETAIL, 
-	     currNode.hashCode() + ": new timesVisited is " + 
-	     currNode.timesVisited.get());
-      pdebug("backProp", BP_DETAIL, 
-	     currNode.hashCode() + ": new aggReward is " + 
-	     currNode.aggReward.get());
+      // pdebug("backProp", BP_DETAIL, 
+      // 	     currNode.hashCode() + ": new timesVisited is " + 
+      // 	     currNode.timesVisited.get());
+      // pdebug("backProp", BP_DETAIL, 
+      // 	     currNode.hashCode() + ": new aggReward is " + 
+      // 	     currNode.aggReward.get());
 
       // if (reward == 1.0) {
         // Console.OUT.println("[backProp] found a winning move.");
@@ -541,44 +569,46 @@ public class MCTNode {
    * Otherwise, the humanMove node that was passed in is returned.
    */
   public def addHumanMoveToOpponentGameTree(val humanMove:BoardState):MCTNode {
-    pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-           "finding this idiot/human board state in the game tree: \n" +
-           humanMove.print());
+    // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+    //        "finding this idiot/human board state in the game tree: \n" +
+    //        humanMove.print());
     val existingNode:MCTNode = findMove(humanMove);
     if(existingNode != null) {
-      pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-             "FOUND, PRINTING ITS CHILDREN");
+      // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+      //        "FOUND, PRINTING ITS CHILDREN");
 
-      for(var i:Int = 0; i < existingNode.children.size(); i++) {
-        pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-               "child( " + i + ")\n" + existingNode.children(i).getBoardState().print());
-      }
+      // for(var i:Int = 0; i < existingNode.children.size(); i++) {
+      //   pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+      //          "child( " + i + ")\n" + existingNode.children(i).getBoardState().print());
+      // }
       
       return existingNode;
     } else {
-      pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
-             "NOT FOUND.");
+      // pdebug("addHumanMoveToOpponentGameTree", UCT_DETAIL,
+      //        "NOT FOUND.");
       return new MCTNode(this, humanMove); // this constructor sets the parent.
     }
   }
 
   // TODO: update children to be a hashset, so this is a constant-time op.
   public def findMove(val stateToFind:BoardState) {
-    for(var i:Int = 0; i < children.size(); i++) {
-      pdebug("findMove", UCT_DETAIL,
-             "comparing to move: \n" +
-             children(i).getBoardState().print());
-      if(children(i).getBoardState().equals(stateToFind)) {
-        return children(i);
-      } 
+    if (children != null) {
+      for(var i:Int = 0; i < children.size(); i++) {
+	// pdebug("findMove", UCT_DETAIL,
+	//        "comparing to move: \n" +
+	//        children(i).getBoardState().print());
+	if(children(i).getBoardState().equals(stateToFind)) {
+          return children(i);
+	} 
+      }
     }
     return null;
   }
 
   // TODO: Make sure !validMoveLeft() is still OK
   public def isLeaf():Boolean {
-    pdebug("isLeaf", DP_DETAIL,
-           "isLeafOnPasses(): " + isLeafOnPasses());
+    // pdebug("isLeaf", DP_DETAIL,
+    //        "isLeafOnPasses(): " + isLeafOnPasses());
     // leaf: no valid moves or two preceding moves were passes    
     return isLeafOnPasses();// || !validMoveLeft();
   }
