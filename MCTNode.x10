@@ -247,7 +247,7 @@ public class MCTNode {
 
           // TODO: the issue is the at.  it appears to be changing the values.
           // inlined default policy:
-          finish {
+          //finish {
             for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
               async {
 		var currParent:MCTNode = new MCTNode(dpNode);
@@ -287,7 +287,7 @@ public class MCTNode {
 		dpNodeResults(dpNodeIdx).getAndAdd(currNode.leafValue());
               }
             }
-	  }
+	  //}
         }
 
         // TODO: we do more than one default policy.  figure out how many to
