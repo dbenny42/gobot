@@ -50,9 +50,11 @@ public class MCTNode {
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
   private static val x10Nthreads = 
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
+
   private static val MAX_ASYNCS:Int = (x10Nthreads * 1.1) as Int;
   private static val MAX_PLACES:Int = Place.MAX_PLACES;
-  private static val BATCH_SIZE:Int = MAX_PLACES;
+  private static val BATCH_SIZE:Int =     
+    Int.parseInt(System.getenv().getOrElse("GOBOT_BATCH_SIZE", "1"));
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
@@ -87,12 +89,6 @@ public class MCTNode {
     this.pass = pass;
     this.children = new ArrayList[MCTNode]();
     this.unexploredMoves = state.listOfEmptyIdxs();
-    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
-    // Console.OUT.println("[this] Stones of the new state: ");
-    // for (var i:Int = 0; i < this.state.getSize(); i++) {
-    //   Console.OUT.println("[this] idx: " + i + ", " + this.state.stoneAt(i));
-    // }
-    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
     this.expanded = false;
    }
 
