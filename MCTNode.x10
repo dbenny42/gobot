@@ -152,9 +152,9 @@ public class MCTNode {
       val currChild:MCTNode = children(i);
       val currVal:Double = currChild.computeUcb(c);
 
-      pdebug("getBestChild", GBC_DETAIL, 
-	     currChild.hashCode() + 
-	     "- UCB is : " + currVal + " vs " + bestVal);
+      // pdebug("getBestChild", GBC_DETAIL, 
+      // 	     currChild.hashCode() + 
+      // 	     "- UCB is : " + currVal + " vs " + bestVal);
 
       if (c == 0.0) {
         // Console.OUT.println("[getBestChild] board: ");
@@ -167,9 +167,9 @@ public class MCTNode {
 
     }
 
-    pdebug("getBestChild", GBC_DETAIL, 
-	   "returning " + bestValArg.hashCode() + " (UCB: " +
-	   + bestVal + ")");
+    // pdebug("getBestChild", GBC_DETAIL, 
+    // 	   "returning " + bestValArg.hashCode() + " (UCB: " +
+    // 	   + bestVal + ")");
     return bestValArg;
   }
 
@@ -219,7 +219,6 @@ public class MCTNode {
       // Tree Policy Start
       val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
-
 	val child:MCTNode = treePolicy(positionsSeen);
 	if (child == this)
 	  break;
@@ -229,10 +228,10 @@ public class MCTNode {
       tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
       // Tree Policy End
 
-      pdebugWait("UCTSearch", TP_DETAIL,
-		 "WILL EXPLORE\n" + printTPResults(dpNodes));
-      pdebugWait("UCTSearch", TP_DETAIL,
-		 "BEFORE DP\n" + printSearchTree());
+      // pdebugWait("UCTSearch", TP_DETAIL,
+      // 		 "WILL EXPLORE\n" + printTPResults(dpNodes));
+      // pdebugWait("UCTSearch", TP_DETAIL,
+      // 		 "BEFORE DP\n" + printSearchTree());
 
       val dpNodeResults:Array[AtomicDouble] = (
 	new Array[AtomicDouble](dpNodes.size(), 
@@ -263,26 +262,26 @@ public class MCTNode {
                   nodesProcessed.incrementAndGet();
                   tempNode = currNode.dpGenerateChild(randomGameMoves);
 
-		  pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-			 "GENERATED\n" + tempNode.getBoardState().print());
+		  // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		  // 	 "GENERATED\n" + tempNode.getBoardState().print());
 
 
                   if(tempNode != null) {
                     currParent = currNode; // old currNode value is this.
                     currNode = tempNode;
                     currNode.setParent(currParent);
-		    pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		           "pass value: " + currNode.pass);
-		    pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
-		           "parent pass value: " + currParent.pass);
+		    // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		    //        "pass value: " + currNode.pass);
+		    // pdebug("default policy", DP_ITR_DETAIL|BOARD_DETAIL,
+		    //        "parent pass value: " + currParent.pass);
                     randomGameMoves.add(currNode.state.hashCode());
                   }
                   currDepth++;
 		}
 
-		pdebug("defaultPolicy", DP_DETAIL,
-		       "Done with DP for " + printNode(dpNode) + "\n" +
-		       "Leaf value is " + currNode.leafValue());
+		// pdebug("defaultPolicy", DP_DETAIL,
+		//        "Done with DP for " + printNode(dpNode) + "\n" +
+		//        "Leaf value is " + currNode.leafValue());
 
 		// TODO: this is the minimax error.
 		dpNodeResults(dpNodeIdx).getAndAdd(currNode.leafValue());
@@ -294,9 +293,9 @@ public class MCTNode {
         // TODO: we do more than one default policy.  figure out how many to
         // increment this by.
         numDefaultPolicies.getAndAdd(1);
-        pdebug("defaultPolicy", DP_DETAIL,
-               "Nodes processed at the end of a default policy: " +
-               nodesProcessed.get());
+        // pdebug("defaultPolicy", DP_DETAIL,
+        //        "Nodes processed at the end of a default policy: " +
+        //        nodesProcessed.get());
         //Console.OUT.println("[default policy] unexploredMoves.size(): " + this.unexploredMoves.size());
       }
 
@@ -304,10 +303,10 @@ public class MCTNode {
       dpTimeElapsed.addAndGet(Timer.nanoTime() - dpStartTime);
       // Default Policy End
 
-      pdebugWait("UCTSearch", DP_DETAIL,
-		 "RESULTS:\n" + printDPResults(dpNodes, dpNodeResults));
-      pdebugWait("UCTSearch", DP_DETAIL,
-		 "BEFORE BACKPROP:\n" + printSearchTree());
+      // pdebugWait("UCTSearch", DP_DETAIL,
+      // 		 "RESULTS:\n" + printDPResults(dpNodes, dpNodeResults));
+      // pdebugWait("UCTSearch", DP_DETAIL,
+      // 		 "BEFORE BACKPROP:\n" + printSearchTree());
 
       // Back Propagate Start
       val bpStartTime = Timer.nanoTime();
@@ -329,8 +328,8 @@ public class MCTNode {
       bpTimeElapsed.addAndGet(Timer.nanoTime() - bpStartTime);
       // Back Propagate End
 
-      pdebugWait("UCTSearch", BP_DETAIL,
-		 "AFTER BACKPROP:\n" + printSearchTree());
+      // pdebugWait("UCTSearch", BP_DETAIL,
+      // 		 "AFTER BACKPROP:\n" + printSearchTree());
     
     } // end 'while within resource bound'
 
@@ -340,19 +339,19 @@ public class MCTNode {
 
     skipWait.getAndSet(false);
     
-    pdebug("UCTSearch", UCT_DETAIL,
-	   "nodes processed: " + nodesProcessed.get() + "\n" +
-	   "time elapsed: " + (Timer.nanoTime() - startTime) + "\n");
-    pdebug("UCTSearch", UCT_DETAIL,
-	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
-	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
-    pdebugWait("UCTSearch", UCT_DETAIL,
-	       "AFTER UCTSEARCH:\n" + printSearchTree());
-    pdebugWait("UCTSearch", UCT_DETAIL,
-	       "Move selected: " + printNode(bestChild));
-    pdebugWait("UCTSearch", UCT_DETAIL,
-               "Board for move selected: \n" +
-               bestChild.state.print());
+    // pdebug("UCTSearch", UCT_DETAIL,
+    // 	   "nodes processed: " + nodesProcessed.get() + "\n" +
+    // 	   "time elapsed: " + (Timer.nanoTime() - startTime) + "\n");
+    // pdebug("UCTSearch", UCT_DETAIL,
+    // 	   "total nodes processed: " + totalNodesProcessed.get() + "\n" +
+    // 	   "total time elapsed: " + totalTimeElapsed.get() + "\n");
+    // pdebugWait("UCTSearch", UCT_DETAIL,
+    // 	       "AFTER UCTSEARCH:\n" + printSearchTree());
+    // pdebugWait("UCTSearch", UCT_DETAIL,
+    // 	       "Move selected: " + printNode(bestChild));
+    // pdebugWait("UCTSearch", UCT_DETAIL,
+    //            "Board for move selected: \n" +
+    //            bestChild.state.print());
                
                
 
