@@ -8,6 +8,9 @@ import x10.util.concurrent.AtomicLong;
 
 public class Go {
 
+  public static val NANOS_PER_MILLI:Int = 1000000;
+  public static val NANOS_PER_SECOND:Int = 1000000000;
+
   public static val numTurns:AtomicInteger = new AtomicInteger(0);
   
   public static def parseMove(move:String, height:Int, width:Int):Int {
@@ -36,12 +39,14 @@ public class Go {
       Console.OUT.println("BLACK WINS.");
       return Stone.BLACK;
     } else {
-      Console.OUT.println("IT WAS A TIE.  Everybody can feel reasonably good about that.");
+      Console.OUT.println("IT WAS A TIE." + 
+			  "Everybody can feel reasonably good about that.");
       return Stone.EMPTY;
     }
   }
 
-  public static def randomComputerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int]):MCTNode {
+  public static def randomComputerTurn(var currNode:MCTNode, 
+				       var positionsSeen:HashSet[Int]):MCTNode {
     var nodeToAdd:MCTNode;
     // Console.OUT.println("the idiotBot is thinking....");
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
@@ -57,17 +62,16 @@ public class Go {
     if(nodeToAdd.getPass()) {
       currNode.setPass(true);
     }
-
     // Console.OUT.println("finished idiotBot turn.");
     return currNode;
   }
 
-  public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
+  public static def computerTurn(var currNode:MCTNode, 
+				 var positionsSeen:HashSet[Int], 
+				 toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
     // Console.OUT.println("the gobot is thinking....");
     nodeToAdd = currNode.UCTSearch(positionsSeen);
-
-    // Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
     currNode = nodeToAdd;
 
@@ -85,7 +89,11 @@ public class Go {
   }
 
 
-  public static def humanTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], var toMove:Stone, val HEIGHT:Int, val WIDTH:Int):MCTNode {
+  public static def humanTurn(var currNode:MCTNode, 
+			      var positionsSeen:HashSet[Int], 
+			      var toMove:Stone, 
+			      val HEIGHT:Int, 
+			      val WIDTH:Int):MCTNode {
     var moveIdx:Int = 0;
     var moveStr:String = "";
     var tempState:BoardState = null;
@@ -95,10 +103,8 @@ public class Go {
       moveStr = Console.IN.readLine();
       
       if(moveStr.equals("")) {
-        Console.OUT.println("you appear to be passing.  We'll take that into account.");
-
-        //var passNode:MCTNode = new MCTNode(currNode, currNode.getBoardState(), Boolean.TRUE);
-        var passNode:MCTNode = currNode.addHumanMoveToOpponentGameTree(currNode.getBoardState());
+        var passNode:MCTNode = 
+	  currNode.addHumanMoveToOpponentGameTree(currNode.getBoardState());
         passNode.setPass(true);
         currNode = passNode;
 
@@ -184,15 +190,25 @@ public class Go {
 
 
     // print statistics
-    Console.OUT.println("avg tp time: " + ((currNode.tpTimeElapsed.get() as Double) / numTurns.get()));
-    Console.OUT.println("avg dp time: " + ((currNode.dpTimeElapsed.get() as Double) / numTurns.get()));
-    Console.OUT.println("avg bp time: " + ((currNode.bpTimeElapsed.get() as Double) / numTurns.get()));
+    Console.OUT.println("avg tree policy time: " + 
+			((currNode.tpTimeElapsed.get() as Double) / 
+			 numTurns.get()) / NANOS_PER_MILLI + " ms");
+    Console.OUT.println("avg default policy time: " + 
+			((currNode.dpTimeElapsed.get() as Double) / 
+			 numTurns.get()) / NANOS_PER_MILLI + " ms");
+    Console.OUT.println("avg back propagation time: " +
+			((currNode.bpTimeElapsed.get() as Double) / 
+			 numTurns.get()) / NANOS_PER_MILLI + " ms");
 
-    Console.OUT.println("nodes processed: " + currNode.totalNodesProcessed.get());
-    Console.OUT.println("total time elapsed: " + currNode.totalTimeElapsed.get());
-    Console.OUT.println("time elapsed per node processed: " + ((currNode.totalTimeElapsed.get() as Double) / currNode.totalNodesProcessed.get()));
-
-
+    Console.OUT.println("nodes processed: " + 
+			currNode.totalNodesProcessed.get() + " nodes");
+    Console.OUT.println("total time elapsed: " + 
+			(currNode.totalTimeElapsed.get() / NANOS_PER_SECOND) + 
+			" seconds");
+    Console.OUT.println("processing rate: " + 
+			((currNode.totalTimeElapsed.get() as Double) / 
+			 (currNode.totalNodesProcessed.get() / 
+			  NANOS_PER_SECOND)) + " nodes per second");
 
     val winner:Stone = printWinner(currNode);
     if (winner == Stone.BLACK) {
@@ -209,7 +225,10 @@ public class Go {
   /*
    * A game between one human player and one computer player.
    */
-  public static def singlePlayerGame(humanStone:Stone, gameTree:MCTNode, HEIGHT:Int, WIDTH:Int) {
+  public static def singlePlayerGame(humanStone:Stone, 
+				     gameTree:MCTNode, 
+				     HEIGHT:Int, 
+				     WIDTH:Int) {
 
     var toMove:Stone = Stone.BLACK;
     var compuStone:Stone = (humanStone == Stone.BLACK) ? Stone.WHITE : Stone.BLACK;
@@ -240,11 +259,13 @@ public class Go {
     printWinner(currNode);
   }
 
-
   /*
    * A Game between two human players.
    */
-  public static def twoPlayerGame(var gameTree:MCTNode, var positionsSeen:HashSet[Int], HEIGHT:Int, WIDTH:Int) {
+  public static def twoPlayerGame(var gameTree:MCTNode, 
+				  var positionsSeen:HashSet[Int], 
+				  HEIGHT:Int, 
+				  WIDTH:Int) {
     var toMove:Stone = Stone.BLACK;
     var currNode:MCTNode = new MCTNode(gameTree.getBoardState());
     positionsSeen.add(gameTree.getBoardState().hashCode());
@@ -257,10 +278,6 @@ public class Go {
     }
     printWinner(currNode);
   }
-
-
-
-
 
   // currently configured to play human against gobot.
   public static def main(var argv:Array[String]):void {

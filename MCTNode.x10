@@ -50,9 +50,11 @@ public class MCTNode {
   private val numAsyncsSpawned:AtomicInteger = new AtomicInteger(0);
   private static val x10Nthreads = 
     Int.parseInt(System.getenv().getOrElse("X10_NTHREADS", "1"));
+
   private static val MAX_ASYNCS:Int = (x10Nthreads * 1.1) as Int;
   private static val MAX_PLACES:Int = Place.MAX_PLACES;
-  private static val BATCH_SIZE:Int = MAX_PLACES;
+  private static val BATCH_SIZE:Int =     
+    Int.parseInt(System.getenv().getOrElse("GOBOT_BATCH_SIZE", "1"));
   private static val NODES_PER_PLACE:Int = BATCH_SIZE / MAX_PLACES;
   private static val MAX_DP_PATHS:Int = MAX_ASYNCS / NODES_PER_PLACE;
 
@@ -201,14 +203,11 @@ public class MCTNode {
     val numDefaultPolicies:AtomicInteger = new AtomicInteger(0);
     val defaultPolicyDepth:Int = state.getSize() * 2;
 
-
-
     val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
 
     // while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
     // while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
-    //Console.OUT.println("entering while loop.");
     while(withinResourceBound(startTime)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
@@ -224,7 +223,6 @@ public class MCTNode {
 	else
 	  dpNodes.add(child);
       }
-
       tpTimeElapsed.addAndGet(Timer.nanoTime() - treePolicyStartTime);
       // Tree Policy End
 
@@ -453,7 +451,6 @@ public class MCTNode {
 
   public def tpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
-
     if(unexploredMoves.isEmpty() && !expanded) {
       expanded = true;
       return new MCTNode(this, state, true);
