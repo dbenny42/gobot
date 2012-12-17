@@ -131,7 +131,7 @@ public class MCTNode {
     // calculation involves the parent.  TODO: make sure we don't try to
     // calc this for the root node.
 
-    if (parent == null || timesVisited.get() == 0) {
+    if (parent == null || timesVisited == null || timesVisited.get() == 0) {
       return Double.POSITIVE_INFINITY;
     }
 
@@ -266,7 +266,7 @@ public class MCTNode {
 
           // TODO: the issue is the at.  it appears to be changing the values.
           // inlined default policy:
-          //finish {
+          finish {
             for (var i:Int = 0; i < MAX_DP_PATHS; i++) {
               async {
 		var currParent:MCTNode = new MCTNode(dpNode);
@@ -306,7 +306,7 @@ public class MCTNode {
 		dpNodeResults(dpNodeIdx).getAndAdd(currNode.leafValue());
               }
             }
-	  //}
+	  }
         }
 
         // TODO: we do more than one default policy.  figure out how many to
