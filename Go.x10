@@ -45,8 +45,11 @@ public class Go {
     var nodeToAdd:MCTNode;
     // Console.OUT.println("the idiotBot is thinking....");
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
+      //Console.OUT.println("[randomComputerTurn] PASSING FROM THE TOP LEVEL."); 
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
+      //Console.OUT.println("[randomComputerTurn] calling dpGenerateChild."); 
+      //Console.OUT.println("[randomComputerTurn] currNode.unexploredMoves.size(): " + currNode.getUnexploredMoves().size());
       nodeToAdd = currNode.dpGenerateChild(positionsSeen);
     }
 
@@ -163,9 +166,10 @@ public class Go {
     var positionsSeen:HashSet[Int] = new HashSet[Int]();
 
     while(!currNode.gameIsOver()) {
-      Console.OUT.println(currNode.getBoardState().print());
+      //Console.OUT.println(currNode.getBoardState().print());
       if(toMove == Stone.BLACK) {
         currNode = computerTurn(currNode, positionsSeen, toMove);
+        //Console.OUT.println("[zeroPlayerGame]: unexploredMoves.size(): " + currNode.getUnexploredMoves().size());
       } else {
 
         // uses the bad AI to play. 

@@ -208,11 +208,12 @@ public class MCTNode {
 
     // while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
     // while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
-    Console.OUT.println("entering while loop.");
+    //Console.OUT.println("entering while loop.");
     while(withinResourceBound(startTime)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
 
+      //Console.OUT.println("[tree policy] Doing a tree policy.");
       // Tree Policy Start
       val treePolicyStartTime = Timer.nanoTime();
       for(childIdx in 0..(BATCH_SIZE - 1)) {
@@ -294,6 +295,7 @@ public class MCTNode {
         pdebug("defaultPolicy", DP_DETAIL,
                "Nodes processed at the end of a default policy: " +
                nodesProcessed.get());
+        //Console.OUT.println("[default policy] unexploredMoves.size(): " + this.unexploredMoves.size());
       }
 
 
@@ -389,7 +391,7 @@ public class MCTNode {
 
   public def dpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
-    val possibleMoves = unexploredMoves.clone();
+    val possibleMoves = this.state.listOfEmptyIdxs();
 
     pdebug("dpGenerateChild", DP_ITR_DETAIL,
 	   "Picking move for " + this.turn.desc() + 
@@ -402,12 +404,15 @@ public class MCTNode {
 	   "current pass value: " + this.pass +
 	   ", current leader: " + this.state.currentLeader().desc());
     if (this.pass && (this.state.currentLeader() == this.turn)) {
+      //Console.OUT.println("[dpGenerateChild] is passing.");
       pdebug("dpGenerateChild", DP_ITR_DETAIL,
              "passing to win during default policy.");
       return new MCTNode(this, state, true); 
     }
-
+    //Console.OUT.println("[dpGenerateChild] unexploredMoves.size(): " + unexploredMoves.size());
+    //Console.OUT.println("[dpGenerateChild] possibleMoves.size(): " + possibleMoves.size());
     while(!possibleMoves.isEmpty()) {
+      //Console.OUT.println("[dpGenerateChild] trying a possible move.");
       var randIdx:Int;
       var possibleState:BoardState = null;
 
@@ -422,6 +427,10 @@ public class MCTNode {
 	
 	possibleState = state.doMove(possibleMoves(randIdx), turn);
 	possibleMoves.removeAt(randIdx);
+
+        //Console.OUT.println("[dpGenerateChild] removed from possibleMoves.size().");
+        //Console.OUT.println("[dpGenerateChild] unexploredMoves.size(): " + unexploredMoves.size());
+        //Console.OUT.println("[dpGenerateChild] possibleMoves.size(): " + possibleMoves.size());
       }
 
       // if valid move (doMove catches invalid, save Ko) AND not seen
@@ -437,7 +446,7 @@ public class MCTNode {
 
     pdebug("dpGenerateChild", DP_ITR_DETAIL,
 	   "No valid moves.");
-
+    //Console.OUT.println("[dpGenerateChild] no valid moves; is passing.");
     // no more actions are possible.
     return new MCTNode(this, state, true);
   }
@@ -607,6 +616,10 @@ public class MCTNode {
     return state;
   }
 
+  public def getUnexploredMoves():ArrayList[Int] {
+    return this.unexploredMoves;
+  }
+
   public def getChildren():ArrayList[MCTNode] {
     return children;
   }
@@ -629,8 +642,8 @@ public class MCTNode {
 
   private def pdebug(val prefix:String, val flag:Int, val msg:String):Boolean {
     if (((DEBUG_MODE & flag) == flag) || flag == 0) {
-      Console.OUT.println();
-      Console.OUT.println("["+prefix+"] - "+ msg);
+      //Console.OUT.println();
+      //Console.OUT.println("["+prefix+"] - "+ msg);
       return true;
     }
     return false;
@@ -638,11 +651,11 @@ public class MCTNode {
 
   private def pdebugWait(val prefix:String, val flag:Int, val msg:String) {
     if (pdebug(prefix, flag, msg) && !skipWait.get()) {
-      Console.OUT.println("\nHit [Enter] to continue");
+      //Console.OUT.println("\nHit [Enter] to continue");
       val skip = Console.IN.readLine();
       if (skip.equals("finish"))
 	skipWait.getAndSet(true);
-      Console.OUT.println("\nProceeding");
+      //Console.OUT.println("\nProceeding");
     }
   }
 
