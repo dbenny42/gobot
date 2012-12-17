@@ -59,11 +59,16 @@ public class MCTNode {
   // Metric values
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
+
+  private static val GOBOT_THINK_TIME:Long = 3L; // 3s, in ns.
+  private static val NANOS_PER_SECOND:Long = 1000000000L;
+
   public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
   public static val totalTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val dpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val bpTimeElapsed:AtomicLong = new AtomicLong(0);
   public static val tpTimeElapsed:AtomicLong = new AtomicLong(0);
+
 
 
   // constructors
@@ -162,15 +167,20 @@ public class MCTNode {
   }
 
 
-  public def withinResourceBound(nodesProcessed:AtomicInteger,
-        			 bound:Int):Boolean{
-    pdebug("withinResourceBound", UCT_DETAIL,
-           "Checking the resource bound.  Nodes Processed: " +
-           nodesProcessed.get() +
-           ", bound: " +
-           bound);
-    return nodesProcessed.get() < bound;
+
+  public def withinResourceBound(val startTime:Long):Boolean {
+    return (Timer.nanoTime() - startTime) < (GOBOT_THINK_TIME * NANOS_PER_SECOND);
   }
+
+  // public def withinResourceBound(nodesProcessed:AtomicInteger,
+  //       			 bound:Int):Boolean{
+  //   pdebug("withinResourceBound", UCT_DETAIL,
+  //          "Checking the resource bound.  Nodes Processed: " +
+  //          nodesProcessed.get() +
+  //          ", bound: " +
+  //          bound);
+  //   return nodesProcessed.get() < bound;
+  // }
 
 
   // public def withinResourceBound(numDefaultPolicies:AtomicInteger,
@@ -179,7 +189,6 @@ public class MCTNode {
   // }
 
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode {
-    Console.OUT.println("x10_nthreads: " + x10Nthreads);
 
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
@@ -197,9 +206,10 @@ public class MCTNode {
     val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
 
-    //while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
-    
-    while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
+    // while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
+    // while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
+    Console.OUT.println("entering while loop.");
+    while(withinResourceBound(startTime)) {
       // Select BATCH_SIZE new MCTNodes to simulate using TP
       val dpNodes:ArrayList[MCTNode] = new ArrayList[MCTNode](BATCH_SIZE);
 
@@ -317,7 +327,7 @@ public class MCTNode {
 
       pdebugWait("UCTSearch", BP_DETAIL,
 		 "AFTER BACKPROP:\n" + printSearchTree());
-      
+    
     } // end 'while within resource bound'
 
     totalNodesProcessed.getAndAdd(nodesProcessed.get());

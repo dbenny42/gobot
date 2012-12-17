@@ -387,7 +387,7 @@ public class BoardState {
 
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
-    if (newChain == Chain.NONE || newChain.isDead()) {
+    if (newChain == null || newChain.isDead()) {
       //Console.OUT.println("Failed because of suicide rule");
       return null;
     }
@@ -434,7 +434,7 @@ public class BoardState {
     val chainsPrinted = new HashSet[Chain]();
 
     for (var idx:Int = 0; idx < this.chains.size; idx++) {
-      if (this.chains(idx) != Chain.NONE && !chainsPrinted.contains(this.chains(idx))) {
+      if (this.chains(idx) != null && !chainsPrinted.contains(this.chains(idx))) {
 	sb.add("CHAIN: ");
 	sb.add(this.chains(idx).toString());
 	sb.add("\n");
@@ -613,7 +613,7 @@ public class BoardState {
   private def getChainsAt(indices:HashSet[Int]):HashSet[Chain] {
     val chainSet:HashSet[Chain] = new HashSet[Chain]();
     for (index in indices) {
-      if (this.chains(index) != Chain.NONE) {
+      if (this.chains(index) != null) {
 	chainSet.add(this.chains(index));
       }
     }
@@ -642,7 +642,7 @@ public class BoardState {
     // Merge with adjacent chains
     val adjIndices = getAdjacentIndices(row, col);
     for (adjChain in getChainsAt(adjIndices)) {
-      if (adjChain != Chain.NONE && adjChain.getStone() == stone) {
+      if (adjChain != null && adjChain.getStone() == stone) {
 	    mergeAndUpdate(this.chains(idx), idx, adjChain);
       }
     }
@@ -669,7 +669,7 @@ public class BoardState {
       // Captured stones become opponent territory
       this.removePiece(memberIdx, 
 		       Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone())));
-      this.chains(memberIdx) = Chain.NONE;
+      this.chains(memberIdx) = null;
     }
 
     /* Inform this chain's neighbors of its death */

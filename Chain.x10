@@ -1,7 +1,7 @@
 import x10.util.HashSet;
 import x10.util.StringBuilder;
 
-public struct Chain {
+public class Chain {
 
   private val stone:Stone;
   private val members:HashSet[Int];
@@ -9,7 +9,7 @@ public struct Chain {
   private val liberties:HashSet[Int];
 
 
-  public static val NONE = Chain();
+  // public static val NONE = Chain();
 
 
   public def this() {
@@ -87,15 +87,15 @@ public struct Chain {
   }
 */
 
-  public def hashCode() {
-    Console.OUT.println("[Chain hashCode] inside call.");
-    val sb = new StringBuilder();
-    for (idx in this.members) {
-      Console.OUT.println("[Chain hashCode] adding a member.");
-      sb.add(idx);
-    }
-    return sb.result().hashCode();
-  }
+  // public def hashCode() {
+  //   Console.OUT.println("[Chain hashCode] inside call.");
+  //   val sb = new StringBuilder();
+  //   for (idx in this.members) {
+  //     Console.OUT.println("[Chain hashCode] adding a member.");
+  //     sb.add(idx);
+  //   }
+  //   return sb.result().hashCode();
+  // }
 
   /**
    * Returns a copy of this Chain's member set

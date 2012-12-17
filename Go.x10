@@ -43,7 +43,7 @@ public class Go {
 
   public static def randomComputerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int]):MCTNode {
     var nodeToAdd:MCTNode;
-    Console.OUT.println("the idiotBot is thinking....");
+    // Console.OUT.println("the idiotBot is thinking....");
     if(currNode.getBoardState().listOfEmptyIdxs().size() < (currNode.getBoardState().getWidth() / 2)) {
       nodeToAdd = new MCTNode(currNode, currNode.getBoardState(), true);
     } else {
@@ -55,19 +55,17 @@ public class Go {
       currNode.setPass(true);
     }
 
-    Console.OUT.println("finished idiotBot turn.");
+    // Console.OUT.println("finished idiotBot turn.");
     return currNode;
   }
 
   public static def computerTurn(var currNode:MCTNode, var positionsSeen:HashSet[Int], toMove:Stone):MCTNode {
     var nodeToAdd:MCTNode;
-    Console.OUT.println("the gobot is thinking....");
+    // Console.OUT.println("the gobot is thinking....");
     nodeToAdd = currNode.UCTSearch(positionsSeen);
 
-    Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
+    // Console.OUT.println("about to add a child node.  its pass value: " + nodeToAdd.getPass() + ", and its parent's pass value: " + nodeToAdd.getParent().getPass());
 
-    //currNode.addRealMoveAsChild(nodeToAdd);
-    
     currNode = nodeToAdd;
 
     // if(!currNode.getChildren().isEmpty()) {
@@ -79,7 +77,7 @@ public class Go {
     //   Console.OUT.println("the computer node has no children.");
     // }
     
-    Console.OUT.println("finished gobot turn.");
+    // Console.OUT.println("finished gobot turn.");
     return currNode;
   }
 
