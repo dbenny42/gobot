@@ -29,7 +29,7 @@ public class MCTNode {
   private var state:BoardState;
   private var pass:Boolean;
   private var realMove:MCTNode;
-  private val unexploredMoves:ArrayList[Int];
+  private var unexploredMoves:ArrayList[Int];
   private var expanded:Boolean;
 
 
@@ -62,8 +62,10 @@ public class MCTNode {
   private static val nodesProcessed:AtomicInteger = new AtomicInteger(0);
   private static val timeElapsed:AtomicLong = new AtomicLong(0);
 
-  private static val GOBOT_THINK_TIME:Long = 3L; // 3s, in ns.
-  private static val NANOS_PER_SECOND:Long = 1000000000L;
+  // in ms.
+  private static val GOBOT_THINK_TIME:Int = 
+    Int.parseInt(System.getenv().getOrElse("GOBOT_THINK_TIME", "3000"));
+  private static val NANOS_PER_MILLI:Long = 1000000L;
 
   public static val totalNodesProcessed:AtomicInteger = new AtomicInteger(0);
   public static val totalTimeElapsed:AtomicLong = new AtomicLong(0);
@@ -93,7 +95,7 @@ public class MCTNode {
     this.turn = parent == null ? Stone.BLACK : Stone.getOpponentOf(parent.turn);
     this.pass = pass;
     this.children = new ArrayList[MCTNode]();
-    this.unexploredMoves = state.listOfEmptyIdxs();
+    this.unexploredMoves = null;
     this.expanded = false;
    }
 
@@ -105,7 +107,10 @@ public class MCTNode {
     this.turn = toCopy.turn;
     this.pass = toCopy.pass;
     this.children = toCopy.children.clone();
-    this.unexploredMoves = toCopy.unexploredMoves.clone();
+    if (toCopy.unexploredMoves != null)
+      this.unexploredMoves = toCopy.unexploredMoves.clone();
+    else
+      this.unexploredMoves = null;
   }
 
 
@@ -171,7 +176,7 @@ public class MCTNode {
 
 
   public def withinResourceBound(val startTime:Long):Boolean {
-    return (Timer.nanoTime() - startTime) < (GOBOT_THINK_TIME * NANOS_PER_SECOND);
+    return (Timer.nanoTime() - startTime) < ((GOBOT_THINK_TIME as Long) * NANOS_PER_MILLI);
   }
 
   // public def withinResourceBound(nodesProcessed:AtomicInteger,
@@ -191,7 +196,6 @@ public class MCTNode {
   // }
 
   public def UCTSearch(val positionsSeen:HashSet[Int]):MCTNode {
-
     //val koTable:GlobalRef[HashSet[Int]] = new GlobalRef(positionsSeen);
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
     val MAX_NODES_PROCESSED:Int = 10000;
@@ -205,7 +209,6 @@ public class MCTNode {
 
     val startTime:Long = Timer.nanoTime();
     numAsyncsSpawned.set(0);
-
     // while(withinResourceBound(numDefaultPolicies, MAX_DEFAULT_POLICIES)) { 
     // while(withinResourceBound(nodesProcessed, MAX_NODES_PROCESSED)) {
     while(withinResourceBound(startTime)) {
@@ -452,6 +455,9 @@ public class MCTNode {
 
   public def tpGenerateChild(positionsSeen:HashSet[Int]):MCTNode {
     //generate the passing child
+    if (unexploredMoves == null) {
+      this.unexploredMoves = this.state.listOfEmptyIdxs();
+    }
     if(unexploredMoves.isEmpty() && !expanded) {
       expanded = true;
       return new MCTNode(this, state, true);
