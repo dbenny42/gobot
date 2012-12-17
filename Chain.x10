@@ -1,12 +1,23 @@
 import x10.util.HashSet;
 import x10.util.StringBuilder;
 
-public class Chain {
+public struct Chain {
 
   private val stone:Stone;
   private val members:HashSet[Int];
   private val adjacencies:HashSet[Int];
   private val liberties:HashSet[Int];
+
+
+  public static val NONE = Chain();
+
+
+  public def this() {
+    this.stone = Stone.EMPTY;
+    this.members = null;
+    this.adjacencies = null;
+    this.liberties = null;
+  }
 
   /**
    * Constructs a new Chain from a singleton stone. Performs no merging.
@@ -74,12 +85,17 @@ public class Chain {
 
     return true;
   }
-
-  public def hashCode():Int {
-    
-
-  }
 */
+
+  public def hashCode() {
+    Console.OUT.println("[Chain hashCode] inside call.");
+    val sb = new StringBuilder();
+    for (idx in this.members) {
+      Console.OUT.println("[Chain hashCode] adding a member.");
+      sb.add(idx);
+    }
+    return sb.result().hashCode();
+  }
 
   /**
    * Returns a copy of this Chain's member set
