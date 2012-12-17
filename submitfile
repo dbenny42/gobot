@@ -1,0 +1,6 @@
+executable     = run_all_tests.sh
+input          = 
+output         = $(Process).out                
+error          = $(Process).err
+log            = $(Process).log                
+queue 
