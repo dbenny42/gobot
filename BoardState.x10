@@ -41,7 +41,7 @@ public class BoardState {
     }
 
     this.stones = new Array[Stone](numSpaces, Stone.EMPTY);
-    this.chains = new Array[Chain](numSpaces);
+    this.chains = new Array[Chain](numSpaces, Chain.NONE);
 
     this.whiteScore = 0;
     this.blackScore = 0;
@@ -69,21 +69,6 @@ public class BoardState {
     this.hashNums = new Array[Int](toCopy.hashNums);
   }
 
-  // assumes equal height and width
-  /*
-  public def equals(toTest:BoardState) {
-    if (toTest.getSize() != this.getSize()) {
-      return Boolean.FALSE;
-    }
-
-    for(var i:Int = 0; i < hashNums.size; i++) {
-      if(toTest.hashNums(i) != this.hashNums(i)) {
-        return Boolean.FALSE;
-      }
-    }
-    return Boolean.TRUE;
-  }*/
-
 
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
@@ -93,15 +78,6 @@ public class BoardState {
     }
     return true;
   }
-
-  /*
-  public def hashCode() {
-    var hash:Int = 0;
-    for(var i:Int = 0; i < hashNums.size; i++) {
-      hash+=hashNums(i);
-    }
-    return hash;
-  }*/
 
   public def hashCode() {
     val sb = new StringBuilder();
@@ -171,15 +147,6 @@ public class BoardState {
     }
     // Console.OUT.println("[listOfEmptyIdxs] the length is: " + spots.size());
     return spots;
-  }
-
-  public def countStones(s:Stone) {
-    var count:Int = 0;
-    for (var idx:Int = 0; idx < this.stones.size; idx++) {
-      if (this.stones(idx) == s)
-	count++;
-    }
-    return count;
   }
 
   /**
@@ -420,7 +387,7 @@ public class BoardState {
 
     newChain = newBoard.chains(idx);
     // Validate suicide prevention
-    if (newChain == null || newChain.isDead()) {
+    if (newChain == Chain.NONE || newChain.isDead()) {
       //Console.OUT.println("Failed because of suicide rule");
       return null;
     }
@@ -467,7 +434,7 @@ public class BoardState {
     val chainsPrinted = new HashSet[Chain]();
 
     for (var idx:Int = 0; idx < this.chains.size; idx++) {
-      if (this.chains(idx) != null && !chainsPrinted.contains(this.chains(idx))) {
+      if (this.chains(idx) != Chain.NONE && !chainsPrinted.contains(this.chains(idx))) {
 	sb.add("CHAIN: ");
 	sb.add(this.chains(idx).toString());
 	sb.add("\n");
@@ -646,7 +613,7 @@ public class BoardState {
   private def getChainsAt(indices:HashSet[Int]):HashSet[Chain] {
     val chainSet:HashSet[Chain] = new HashSet[Chain]();
     for (index in indices) {
-      if (this.chains(index) != null) {
+      if (this.chains(index) != Chain.NONE) {
 	chainSet.add(this.chains(index));
       }
     }
@@ -675,11 +642,10 @@ public class BoardState {
     // Merge with adjacent chains
     val adjIndices = getAdjacentIndices(row, col);
     for (adjChain in getChainsAt(adjIndices)) {
-      if (adjChain != null && adjChain.getStone() == stone) {
-	    mergeAndUpdate(this.chains(idx), idx, adjChain);
+      if (adjChain != Chain.NONE && adjChain.getStone() == stone) {
+	mergeAndUpdate(this.chains(idx), idx, adjChain);
       }
     }
-
     newChain = this.chains(idx);
 
     // Update chain membership
@@ -702,7 +668,7 @@ public class BoardState {
       // Captured stones become opponent territory
       this.removePiece(memberIdx, 
 		       Stone.getTerritoryOf(Stone.getOpponentOf(toDie.getStone())));
-      this.chains(memberIdx) = null;
+      this.chains(memberIdx) = Chain.NONE;
     }
 
     /* Inform this chain's neighbors of its death */

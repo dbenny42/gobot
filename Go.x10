@@ -70,13 +70,6 @@ public class Go {
     // Console.OUT.println("the gobot is thinking....");
     nodeToAdd = currNode.UCTSearch(positionsSeen);
 
-    // Console.OUT.println("about to add a child node.  its pass value: " + 
-    // 			nodeToAdd.getPass() + 
-    // 			", and its parent's pass value: " + 
-    // 			nodeToAdd.getParent().getPass());
-			
-    //currNode.addRealMoveAsChild(nodeToAdd);
-    
     currNode = nodeToAdd;
 
     // if(!currNode.getChildren().isEmpty()) {

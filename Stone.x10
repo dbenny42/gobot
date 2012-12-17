@@ -20,6 +20,10 @@ public struct Stone {
   public static val TERR_W = Stone(4, '\'', "white terriroty");
   public static val INVALID = Stone(-1, '?', "invalid");
 
+  public def hashCode():Int {
+    return this.repr;
+  }
+
   public static def canPlaceOn(s:Stone):Boolean {
     // Console.OUT.println("[canPlaceOn] the stone is " + s.desc);
     // Console.OUT.println("[canPlaceOn] unformatted: " + s);
