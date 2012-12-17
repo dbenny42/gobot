@@ -69,21 +69,6 @@ public class BoardState {
     this.hashNums = new Array[Int](toCopy.hashNums);
   }
 
-  // assumes equal height and width
-  /*
-  public def equals(toTest:BoardState) {
-    if (toTest.getSize() != this.getSize()) {
-      return Boolean.FALSE;
-    }
-
-    for(var i:Int = 0; i < hashNums.size; i++) {
-      if(toTest.hashNums(i) != this.hashNums(i)) {
-        return Boolean.FALSE;
-      }
-    }
-    return Boolean.TRUE;
-  }*/
-
 
   public def equals(toTest:BoardState) {
     for(var i:Int = 0; i < getSize(); i++) {
@@ -93,15 +78,6 @@ public class BoardState {
     }
     return true;
   }
-
-  /*
-  public def hashCode() {
-    var hash:Int = 0;
-    for(var i:Int = 0; i < hashNums.size; i++) {
-      hash+=hashNums(i);
-    }
-    return hash;
-  }*/
 
   public def hashCode() {
     val sb = new StringBuilder();
@@ -171,15 +147,6 @@ public class BoardState {
     }
     // Console.OUT.println("[listOfEmptyIdxs] the length is: " + spots.size());
     return spots;
-  }
-
-  public def countStones(s:Stone) {
-    var count:Int = 0;
-    for (var idx:Int = 0; idx < this.stones.size; idx++) {
-      if (this.stones(idx) == s)
-	count++;
-    }
-    return count;
   }
 
   /**

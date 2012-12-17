@@ -87,12 +87,6 @@ public class MCTNode {
     this.pass = pass;
     this.children = new ArrayList[MCTNode]();
     this.unexploredMoves = state.listOfEmptyIdxs();
-    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
-    // Console.OUT.println("[this] Stones of the new state: ");
-    // for (var i:Int = 0; i < this.state.getSize(); i++) {
-    //   Console.OUT.println("[this] idx: " + i + ", " + this.state.stoneAt(i));
-    // }
-    // Console.OUT.println("[this] num unexplored moves: " + this.unexploredMoves.size());
     this.expanded = false;
    }
 
@@ -191,6 +185,7 @@ public class MCTNode {
     val MAX_DEFAULT_POLICIES:Int = Math.pow(state.getWidth() as Double, 3.0) as Int;
     val MAX_NODES_PROCESSED:Int = 10000;
 
+    this.parent = null; // make sure backprop stops at this node.
 
     // Console.OUT.println("max default policies: " + MAX_DEFAULT_POLICIES);
     // Console.OUT.println("max_dp_paths: " + MAX_DP_PATHS);
